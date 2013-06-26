@@ -112,7 +112,9 @@ function manta_setup_common_log_rotation {
     mkdir -p /opt/smartdc/common/sbin
     mkdir -p /var/log/manta/upload
 
-    cp ./backup.sh /opt/smartdc/common/sbin
+    local DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+    cp ${DIR}/backup.sh /opt/smartdc/common/sbin
     chmod 755 /opt/smartdc/common/sbin/backup.sh
 
     chown root:sys /var/log/manta/upload
