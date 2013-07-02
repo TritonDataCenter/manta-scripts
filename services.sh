@@ -269,6 +269,8 @@ function manta_common_setup {
     if [[ $# -eq 1 ]] || [[ $# -ge 2 ]] && [[ "$2" -eq 0 ]]
     then
 	manta_setup_common_log_rotation $1
+    else
+        manta_setup_common_log_rotation
     fi
 
     # Hack, but it's the only one we want to skip DNS on,
