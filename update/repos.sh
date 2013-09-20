@@ -71,6 +71,7 @@ for repo in "${REPOS[@]}"; do
     git submodule init $DEP_LOC
     git submodule update $DEP_LOC
     cd $DEP_LOC
+    git pull --rebase
     git merge origin/master
     cd -
     git add $DEP_LOC
