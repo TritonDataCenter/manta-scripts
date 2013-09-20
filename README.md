@@ -6,6 +6,6 @@ not get picked up*.  To update, run the update script like so:
 
     [manta-scripts]$ ./update/repos.sh <Jira Item>
 
-In order for that script to work, you must have all of the manta repos cloned
-at ../.  The full list can be found in the repos.sh script.  If there are
-problems during updates, the script can safely be rerun.
+In order for that script to work, you must have all of the manta repos cloned at
+../.  The full list can be found in the repos.sh script.  If there are problems
+during updates, the script can safely be rerun.
