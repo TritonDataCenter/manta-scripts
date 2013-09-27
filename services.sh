@@ -291,7 +291,7 @@ function manta_common_setup {
     manta_update_env
 
     # Setup NDD tunings
-    ipadm set-prop -t -p max_buf=2097152 tcp
+    ipadm set-prop -t -p max_buf=2097152 tcp || true
     /usr/sbin/ndd -set /dev/tcp tcp_conn_req_max_q 2048
     /usr/sbin/ndd -set /dev/tcp tcp_conn_req_max_q0 8192
 }
