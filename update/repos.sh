@@ -24,6 +24,7 @@ REPOS=(
     wrasse
     mola
     madtom
+    manta-workflow
 )
 PROBLEMS=( )
 DEP_LOC="deps/manta-scripts"

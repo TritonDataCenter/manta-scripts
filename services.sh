@@ -120,6 +120,10 @@ function manta_setup_common_log_rotation {
     chown root:sys /var/log/manta/upload
     chown root:sys /opt/smartdc/common
 
+    # Ensure that log rotation HUPs *r*syslog.
+    logadm -r /var/adm/messages
+    logadm -w /var/adm/messages -C 4 -a 'kill -HUP `cat /var/run/rsyslogd.pid`'
+
     # Move the smf_logs entry to run last
     logadm -r smf_logs
 
