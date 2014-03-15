@@ -25,6 +25,7 @@ REPOS=(
     mola
     madtom
     manta-workflow
+    marlin-dashboard
 )
 PROBLEMS=( )
 DEP_LOC="deps/manta-scripts"
