@@ -16,7 +16,7 @@ REPOS=(
     mahi
     electric-moray
     moray
-    manatee
+    manta-manatee
     mako
     marlin
     binder
