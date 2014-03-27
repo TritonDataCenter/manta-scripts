@@ -86,9 +86,6 @@ function manta_download_metadata {
 function manta_enable_config_agent {
     local prefix=/opt/smartdc/config-agent
 
-    # Write configuration synchronously
-    ${prefix}/build/node/bin/node ${prefix}/agent.js -s
-
     svccfg import ${prefix}/smf/manifests/config-agent.xml
     svcadm enable config-agent
 }
