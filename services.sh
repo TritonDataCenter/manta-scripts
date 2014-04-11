@@ -66,9 +66,6 @@ function manta_upload_metadata_values {
             fi
         fi
     done
-
-    local datacenter=$(mdata-get sdc:datacenter_name)
-    [[ $? -eq 0 ]] && ${update} DATACENTER ${datacenter}
 }
 
 
