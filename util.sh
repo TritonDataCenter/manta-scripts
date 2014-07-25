@@ -103,42 +103,6 @@ function manta_ensure_moray {
 }
 
 
-function manta_ensure_zk {
-    local attempt=0
-    local isok=0
-    local zkok
-
-    local zonename=$(zonename)
-
-    local zk_ips=$(json -f ${METADATA} ZK_SERVERS | json -a host)
-    if [[ $? -ne 0 ]] ; then
-	zk_ips=127.0.0.1
-    fi
-
-    while [[ $attempt -lt 60 ]]
-    do
-	for ip in $zk_ips
-	do
-	    zkok=$(echo "ruok" | nc -w 1 $ip 2181)
-	    if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]
-	    then
-		isok=1
-		break
-	    fi
-	done
-
-	if [[ $isok -eq 1 ]]
-	then
-	    break
-	fi
-
-	let attempt=attempt+1
-	sleep 1
-    done
-    [[ $isok -eq 1 ]] || fatal "ZooKeeper is not running"
-}
-
-
 function manta_update_dns {
     return 0
 
