@@ -33,7 +33,6 @@ REPOS=(
     wrasse
     mola
     madtom
-    manta-workflow
     marlin-dashboard
     propeller
 )
