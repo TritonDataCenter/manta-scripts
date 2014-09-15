@@ -20,21 +20,21 @@
 ###############################################################################
 
 REPOS=(
-    muppet
-    muskie
-    mahi
-    electric-moray
-    moray
-    manta-manatee
-    mako
-    marlin
     binder
-    medusa
-    wrasse
-    mola
-    madtom
-    marlin-dashboard
-    propeller
+    electric-moray
+    mahi
+    manta-madtom
+    manta-mako
+    manta-manatee
+    manta-marlin
+    manta-marlin-dashboard
+    manta-medusa
+    manta-mola
+    manta-muskie
+    manta-propeller
+    manta-wrasse
+    moray
+    muppet
 )
 PROBLEMS=( )
 DEP_LOC="deps/manta-scripts"
