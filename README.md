@@ -8,6 +8,12 @@
     Copyright (c) 2014, Joyent, Inc.
 -->
 
+# manta-scripts
+
+This repository is part of the Joyent Manta project.  For contribution
+guidelines, issues, and general documentation, visit the main
+[Manta](http://github.com/joyent/manta) project page.
+
 These scripts are used for configuring manta zones and uploading log files.
 
 Note that this repository is used as a git submodule, and once updated, all
