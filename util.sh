@@ -148,6 +148,52 @@ function manta_ensure_zk {
 }
 
 
+#
+# If the external network is the primary network for this zone, external DNS
+# servers will be first in the list of resolvers.  As this zone is setting up,
+# the config-agent can't resolve the SAPI hostname (e.g.  sapi.coal.joyent.us)
+# and zone setup will fail.
+#
+# Here, remove all resolvers but the SDC resolver so setup can finish
+# appropriately.  The config-agent will rewrite the /etc/resolv.conf file with
+# the proper resolvers later, so this just allows that agent to discover and
+# download the appropriate zone configuration.
+#
+function manta_clear_dns_except_sdc {
+    if [[ -z $SAPI_URL ]]; then
+        fatal "SAPI_URL not set"
+    fi
+    local sapi_hostname=$(basename $SAPI_URL)
+    if [[ -z $sapi_hostname ]] || [[ $sapi_hostname != *sapi* ]]; then
+        fatal "$sapi_hostname isn't recognizable as sapi"
+    fi
+    local sdc_resolver=''
+    local resolvers=$(cat /etc/resolv.conf | grep nameserver | \
+        cut -d ' ' -f 2 | tr '\n' ' ')
+    for resolver in $resolvers; do
+        local sapi_ip;
+        sapi_ip=$(dig @$resolver $sapi_hostname +short)
+        if [[ $? != 0 ]]; then
+            echo "$resolver was unavailable to resolve $sapi_hostname"
+            continue
+        fi
+        if [[ -n "$sapi_ip" ]]; then
+            sdc_resolver="$resolver"
+            break
+        else
+            echo "$resolver did not resolve $sapi_hostname"
+        fi
+    done
+    if [[ -z "$sdc_resolver" ]]; then
+        fatal "No resolvers were able to resolve $sapi_hostname"
+    fi
+
+    cat /etc/resolv.conf | grep -v nameserver > /tmp/resolv.conf
+    echo "nameserver $sdc_resolver" >> /tmp/resolv.conf
+    mv /tmp/resolv.conf /etc/resolv.conf
+}
+
+
 function manta_update_dns {
     return 0
 

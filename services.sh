@@ -267,6 +267,7 @@ function manta_common_presetup {
 # If argument 1 is an integer = 0, then log rotation is skipped
 function manta_common_setup {
     manta_upload_metadata_values
+    manta_clear_dns_except_sdc
     manta_download_metadata
     manta_enable_config_agent
     manta_setup_cron
