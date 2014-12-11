@@ -68,8 +68,8 @@ function manta_ensure_manatee {
 	    zkok=$(echo "ruok" | nc -w 1 $ip 2181)
 	    if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]
 	    then
-		pgok=$(/opt/smartdc/moray/node_modules/.bin/manatee-stat -s $svc_name $ip | json registrar.database.primary)
-		if [[ $? -eq 0 ]] && [[ $pgok == tcp* ]]
+		pgip=$(/opt/smartdc/moray/node_modules/.bin/manatee-stat -s $svc_name $ip | json primary.ip)
+		if [[ $? -eq 0 ]] && [[ -n "$pgip" ]]
 		then
 		    isok=1
 		    break
