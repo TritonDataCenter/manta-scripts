@@ -21,7 +21,7 @@ These scripts are used for configuring manta zones and uploading log files.
 Recall that most Manta components are deployed as *zones*, based on *images*
 built from a single *repo*.  Examples include *muppet* and *muskie*.  The build
 and deployment process is described in detail in the main
-[https://github.com/joyent/manta](manta) README.  This repo contains parts used
+[manta](https://github.com/joyent/manta) README.  This repo contains parts used
 to configure each zone when it's first deployed and on subsequent boots, and
 that mechanism is described here.
 
