@@ -6,7 +6,12 @@
 #
 
 #
-# Copyright (c) 2014, Joyent, Inc.
+# Copyright (c) 2015, Joyent, Inc.
+#
+
+#
+# scripts/common/util.sh: common routines for configuring a Manta zone.  This
+# script is typically included by submodule in each Manta component repo.
 #
 
 #
@@ -15,20 +20,26 @@
 export METADATA=/var/tmp/metadata.json
 export SAPI_URL=$(mdata-get SAPI_URL)
 
-
+#
+# fatal MESSAGE ...: dump MESSAGE to stderr and exit as a failure
+#
 function fatal {
     echo "$(basename $0): fatal error: $*" >&2
     exit 1
 }
 
-
-# Creates an entry in /etc/logadm.conf for hourly log rotation of the specified
-# name ($1), and moves it to /var/log/manta under a scheme the log pusher
-# recognizes.  By default this looks for source files of $1 in /var/svc/log but
-# you can override that with $2.  By default, log searches are fuzzy-matched and
-# all matched files are concatinated before rotation.  If $3 is the literal
-# string 'exact', then logadmin will look for an exact match ('$1.log' instead
-# of '*$1*.log').
+#
+# manta_add_logadm_entry PATTERN [LOGDIR [MATCH-MODE]]: creates an entry in
+# /etc/logadm.conf for hourly log rotation of files matching PATTERN in LOGDIR.
+# Logs are rotated into /var/log/manta and eventually uploaded back to Manta.
+# See services.sh for details on how this works.
+#
+# If LOGDIR is not specified, it defaults to /var/svc/log.
+#
+# By default, we'll use a fuzzy match (all files matching $LOGDIR/*$PATTERN*)
+# and concatenate all matching files.  If MATCH-MODE is "exact", then we'll only
+# match $LOGDIR/$PATTERN.
+#
 function manta_add_logadm_entry {
     [[ $# -ge 1 ]] || fatal "add_logadm_entry requires at least 1 argument"
 
@@ -45,7 +56,11 @@ function manta_add_logadm_entry {
         "$pattern" || fatal "unable to create logadm entry"
 }
 
-
+#
+# manta_ensure_manatee: waits up to about 90 seconds for the zookeeper cluster
+# to come online and for the local manatee cluster to come online.  It's a fatal
+# error if this doesn't happen within the alloted timeout.
+#
 function manta_ensure_manatee {
     local attempt=0
     local isok=0
@@ -57,28 +72,24 @@ function manta_ensure_manatee {
     local svc_name=$(json -f ${METADATA} SERVICE_NAME)
     local zk_ips=$(json -f ${METADATA} ZK_SERVERS | json -a host)
 
-    if [[ $? -ne 0 ]] ; then
+    if [[ $? -ne 0 ]]; then
 	zk_ips=127.0.0.1
     fi
 
-    while [[ $attempt -lt 90 ]]
-    do
-	for ip in $zk_ips
-	do
+    while [[ $attempt -lt 90 ]]; do
+	for ip in $zk_ips; do
 	    zkok=$(echo "ruok" | nc -w 1 $ip 2181)
-	    if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]
-	    then
-		pgip=$(/opt/smartdc/moray/node_modules/.bin/manatee-stat -s $svc_name $ip | json primary.ip)
-		if [[ $? -eq 0 ]] && [[ -n "$pgip" ]]
-		then
+	    if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]; then
+		pgip=$(/opt/smartdc/moray/node_modules/.bin/manatee-stat \
+		    -s $svc_name $ip | json primary.ip)
+		if [[ $? -eq 0 ]] && [[ -n "$pgip" ]]; then
 		    isok=1
 		    break
 		fi
 	    fi
 	done
 
-	if [[ $isok -eq 1 ]]
-	then
+	if [[ $isok -eq 1 ]]; then
 	    break
 	fi
 
@@ -88,7 +99,11 @@ function manta_ensure_manatee {
     [[ $isok -eq 1 ]] || fatal "manatee is not up"
 }
 
-
+#
+# manta_ensure_moray MORAY_HOST: waits up to about 90 seconds for a moray shard
+# to come online.  It's a fatal error if this doesn't happen within the allotted
+# timeout.
+#
 function manta_ensure_moray {
     [[ $# -ge 1 ]] || fatal "manta_ensure_moray requires at least 1 argument"
 
@@ -96,11 +111,9 @@ function manta_ensure_moray {
     local now
     local isok=0
 
-    while [[ $attempt -lt 90 ]]
-    do
+    while [[ $attempt -lt 90 ]]; do
 	now=$(sql -h $1 -p 2020 'select now();' | json now)
-	if [[ $? -eq 0 ]] && [ -n "$now" ]
-	then
+	if [[ $? -eq 0 ]] && [[ -n "$now" ]]; then
 	    isok=1
 	    break
 	fi
@@ -111,7 +124,11 @@ function manta_ensure_moray {
     [[ $isok -eq 1 ]] || fatal "moray $1 is not up"
 }
 
-
+#
+# manta_ensure_zk: waits up to about 60 seconds for the local Zookeeper cluster
+# to come online.  It's a fatal error if this doesn't happen within the allotted
+# timeout.
+#
 function manta_ensure_zk {
     local attempt=0
     local isok=0
@@ -120,24 +137,20 @@ function manta_ensure_zk {
     local zonename=$(zonename)
 
     local zk_ips=$(json -f ${METADATA} ZK_SERVERS | json -a host)
-    if [[ $? -ne 0 ]] ; then
+    if [[ $? -ne 0 ]]; then
 	zk_ips=127.0.0.1
     fi
 
-    while [[ $attempt -lt 60 ]]
-    do
-	for ip in $zk_ips
-	do
+    while [[ $attempt -lt 60 ]]; do
+	for ip in $zk_ips; do
 	    zkok=$(echo "ruok" | nc -w 1 $ip 2181)
-	    if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]
-	    then
+	    if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]; then
 		isok=1
 		break
 	    fi
 	done
 
-	if [[ $isok -eq 1 ]]
-	then
+	if [[ $isok -eq 1 ]]; then
 	    break
 	fi
 
@@ -149,10 +162,10 @@ function manta_ensure_zk {
 
 
 #
-# If the external network is the primary network for this zone, external DNS
-# servers will be first in the list of resolvers.  As this zone is setting up,
-# the config-agent can't resolve the SAPI hostname (e.g.  sapi.coal.joyent.us)
-# and zone setup will fail.
+# manta_clear_dns_except_sdc: reconfigure DNS.  If the external network is the
+# primary network for this zone, external DNS servers will be first in the list
+# of resolvers.  As this zone is setting up, the config-agent can't resolve the
+# SAPI hostname (e.g. "sapi.coal.joyent.us") and zone setup will fail.
 #
 # Here, remove all resolvers but the SDC resolver so setup can finish
 # appropriately.  The config-agent will rewrite the /etc/resolv.conf file with
@@ -193,36 +206,28 @@ function manta_clear_dns_except_sdc {
     mv /tmp/resolv.conf /etc/resolv.conf
 }
 
-
+#
+# manta_update_dns:  This used to configure /etc/resolv.conf, but this
+# placeholder remains only to satisfy consumers still calling it.
+#
 function manta_update_dns {
     return 0
-
-    echo "Updating /etc/resolv.conf"
-
-    local domain_name=$(json -f ${METADATA} domain_name)
-    [[ $? -eq 0 ]] || fatal "Unable to domain name from metadata"
-    local nameservers=$(json -f ${METADATA} ZK_SERVERS | json -a host)
-    [[ $? -eq 0 ]] || fatal "Unable to retrieve nameservers from metadata"
-
-
-    echo domain $domain_name > /etc/resolv.conf
-    for ip in $nameservers
-    do
-        echo nameserver $ip >> /etc/resolv.conf
-    done
 }
 
-
-# Updates the $HOME directory of the root user to have some things setup, such
-# as node/bunyan in the path, etc.  Requires the global varaible SVC_ROOT to be
-# set (from which we acquire node)
+#
+# manta_update_env: updates the $HOME directory of the root user to have various
+# useful tools in their PATH and several useful aliases configured.  This
+# requires the global varaible SVC_ROOT to be set (from which we acquire node).
+#
 function manta_update_env {
     echo "Updating ~/.bashrc (and environment)"
 
     local RC=/root/.bashrc
 
-    # First create the default skeleton entry (we rewrite this every time,
-    # or it keeps getting appended to on reboot)
+    #
+    # First create the default skeleton entry.  We rewrite this every time,
+    # or it keeps getting appended to on reboot.
+    #
     echo "" > /root/.bashrc
     echo 'if [ "$PS1" ]; then' >> $RC
     echo '  shopt -s checkwinsize cdspell extglob histappend' >> $RC
@@ -238,7 +243,9 @@ function manta_update_env {
     echo "  fi" >> $RC
     echo "fi" >> $RC
 
-    # Now write the stuff we care about, starting with $PATH
+    #
+    # Now write the stuff we care about, starting with $PATH.
+    #
     echo "export PATH=$SVC_ROOT/build/node/bin:$SVC_ROOT/node_modules/.bin:/opt/smartdc/configurator/bin:/opt/local/bin:\$PATH" >> $RC
 
     local hostname=`hostname | cut -c1-8`
@@ -248,12 +255,13 @@ function manta_update_env {
     fi
 
     echo "export PS1=\"[\\u@$hostname ($role) \\w]$ \"" >> $RC
-
     echo "alias bunyan='bunyan --color'" >> $RC
     echo "alias less='less -R'" >> $RC
 
-    # The SSH key will already be there (written by the config-agent) -- just
+    #
+    # The SSH key will already be there (written by the config-agent).  Just
     # update its permissions.
+    #
     if [[ -f /root/.ssh/id_rsa ]]; then
         chmod 600 /root/.ssh/id_rsa
     fi
@@ -268,5 +276,4 @@ function manta_update_env {
     echo "export MANTA_TLS_INSECURE=$manta_tls_insecure" >> /root/.bashrc
 
     echo "alias js2json='node -e '\''s=\"\"; process.stdin.resume(); process.stdin.on(\"data\",function(c){s+=c}); process.stdin.on(\"end\",function(){o=eval(\"(\"+s+\")\");console.log(JSON.stringify(o)); });'\'''" >> /root/.bashrc
-
 }

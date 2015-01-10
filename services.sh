@@ -5,19 +5,23 @@
 #
 
 #
-# Copyright (c) 2014, Joyent, Inc.
+# Copyright (c) 2015, Joyent, Inc.
 #
 
 #
-# scripts/common/services.sh: common routines for configuring a Manta zone
+# scripts/common/services.sh: common routines for configuring a Manta zone.
+# This script is typically included by submodule in each Manta component repo.
+# Only a few of the functions contained here are public, and they're invoked by
+# the setup script that runs when a Manta zone first boots.
 #
+# All functions in this file assume that ./util.sh is already sourced and that
+# "errexit" is set.
 #
-# -*- mode: shell-script; fill-column: 80; -*-
 
-# All functions in this file assume that ./util.sh is already sourced
-
-
-# Write out the config-agent's file
+#
+# manta_setup_config_agent: write out the configuration file for the
+# config-agent.
+#
 function manta_setup_config_agent {
     local prefix=/opt/smartdc/config-agent
     local tmpfile=/tmp/agent.$$.xml
@@ -39,20 +43,25 @@ function manta_setup_config_agent {
 EOF
 }
 
-
-# Add a directory in which to search for local config manifests
+#
+# manta_add_manifest_dir DIRECTORY: update the config-agent configuration to
+# include local manifests located under DIRECTORY.
+#
 function manta_add_manifest_dir {
     local file=/opt/smartdc/config-agent/etc/config.json
     local dir=$1
-
     local tmpfile=/tmp/add_dir.$$.json
 
     cat ${file} | json -e "this.localManifestDirs.push('$dir')" >${tmpfile}
     mv ${tmpfile} ${file}
 }
 
-
-# Upload the IP addresses assigned to this zone into its metadata
+#
+# manta_upload_metadata_values: For each network for which this zone is
+# configured, write zone metadata indicating its IP on that network.  This
+# iterates the zone metadata provided by SDC and maps network names to IP
+# addresses.  For example, we'll write properties like EXTERNAL_IP=X.X.X.X.
+#
 function manta_upload_metadata_values {
     local update=/opt/smartdc/config-agent/bin/mdata-update
 
@@ -76,8 +85,10 @@ function manta_upload_metadata_values {
     done
 }
 
-
-# Download this zone's SAPI metadata and save it in a local file
+#
+# manta_download_metadata: Fetch this zone's SAPI metadata and save it to
+# the local path $METADATA.
+#
 function manta_download_metadata {
     curl -s ${SAPI_URL}/configs/$(zonename) | json metadata > ${METADATA}
 
@@ -86,83 +97,120 @@ function manta_download_metadata {
     fi
 }
 
-
-# Import and enable the config-agent
+#
+# manta_enable_config_agent: Enable this zone's configuration agent (by
+# importing its SMF manifest and enabling the service).
+#
 function manta_enable_config_agent {
-    local prefix=/opt/smartdc/config-agent
-
-    svccfg import ${prefix}/smf/manifests/config-agent.xml
+    svccfg import /opt/smartdc/config-agent/smf/manifests/config-agent.xml
     svcadm enable config-agent
 }
 
 
-# Simply runs the amon-agent postinstaller
+#
+# manta_setup_amon_agent: run the amon-agent postinstall script to set up
+# monitoring for this zone.
+#
 function manta_setup_amon_agent {
     if [[ -d /opt/amon-agent ]] ; then
-	echo "Setting up amon-agent"
-	/opt/amon-agent/pkg/postinstall.sh || fatal "unable to setup amon"
+        echo "Setting up amon-agent"
+        /opt/amon-agent/pkg/postinstall.sh || fatal "unable to setup amon"
     fi
 }
 
-
-# Sets up log rotation entries (and cron) for all the common services that
-# run in every manta zone, plus takes an argument for the "primary" service name
-# of the current zone
+#
+# manta_setup_common_log_rotation [LOGNAME]: set up cron to rotate logs, and
+# then configure log rotation for log files common to all Manta zones.  If
+# LOGNAME is not specified, then only the truly common logs will be set up.  If
+# LOGNAME is given, then logs in /var/svc/log/*LOGNAME* will also be rotated
+# (which are SMF service logs).
+#
+# This works as follows: logadm is configured to rotate the common service logs
+# (i.e., config-agent and registrar) as well as any additional Manta service
+# logs (i.e., whatever's installed in this zone, like muskie, mako, or
+# whatever).  The rotated logs are dropped into /var/log/manta/upload.  cron is
+# configured to run logadm every hour on the hour, so each hour's logs get
+# dropped into /var/log/manta/upload at the top of each hour.  Separately, cron
+# is configured to run the log uploader script (backup.sh) every hour, which
+# uploads any logs it finds in /var/log/manta/upload up to Manta and then
+# removes the local copies.  If Manta is down when this happens, the log files
+# will remain in /var/log/manta/upload until the next hour when Manta is up, at
+# which point they'll be uploaded and then the local copies will be removed.
+#
 function manta_setup_common_log_rotation {
     echo "Setting up common log rotation entries"
 
-    mkdir -p /opt/smartdc/common/sbin
+    #
+    # Create /var/log/manta/upload, where we store files ready to be uploaded.
+    #
     mkdir -p /var/log/manta/upload
+    chown root:sys /var/log/manta/upload
 
+    #
+    # Copy the log uploader into a place where cron can run it.
+    #
     local DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
+    mkdir -p /opt/smartdc/common/sbin
     cp ${DIR}/backup.sh /opt/smartdc/common/sbin
     chmod 755 /opt/smartdc/common/sbin/backup.sh
-
-    chown root:sys /var/log/manta/upload
     chown root:sys /opt/smartdc/common
 
+    #
     # Ensure that log rotation HUPs *r*syslog.
+    #
     logadm -r /var/adm/messages
     logadm -w /var/adm/messages -C 4 -a 'kill -HUP `cat /var/run/rsyslogd.pid`'
 
-    # Move the smf_logs entry to run last
+    #
+    # We want to rotate smf_logs last, so we'll remove it here and re-add it
+    # below, in manta_common_setup_end, after all of our other changes.
+    #
     logadm -r smf_logs
 
+    #
+    # Add the logadm configurations for the config-agent and registrar services
+    # (which are present in every zone), plus the one we've been given.
+    #
     manta_add_logadm_entry "config-agent"
     manta_add_logadm_entry "registrar"
     if [[ $# -ge 1 ]]; then
-	manta_add_logadm_entry $1
+        manta_add_logadm_entry $1
     fi
 
+    #
+    # Finally, update the crontab to invoke logadm hourly (to rotate logs into
+    # /var/log/manta/upload) and then to invoke the uploader after that.  We
+    # retry the uploader (which is idempotent) a few times in case of transient
+    # failures, though if Manta's down for this whole time then we'll end up
+    # trying again at the next hour.
+    #
     crontab -l > /tmp/.manta_logadm_cron
     echo '0 * * * * /usr/sbin/logadm' >> /tmp/.manta_logadm_cron
-    # We just want this to keep retrying every minute - boxes may
     echo '1,2,3,4,5 * * * * /opt/smartdc/common/sbin/backup.sh >> /var/log/mbackup.log 2>&1' \
-	>> /tmp/.manta_logadm_cron
+        >> /tmp/.manta_logadm_cron
     crontab /tmp/.manta_logadm_cron
     rm -f /tmp/.manta_logadm_cron
 }
 
-
+#
+# manta_setup_cron: set up the cron service (by importing its SMF manifest and
+# enabling the service).
+#
 function manta_setup_cron {
     echo "Installing cron (and resetting crontab)"
     svccfg import /lib/svc/manifest/system/cron.xml || \
-	fatal "unable to import cron"
+        fatal "unable to import cron"
     svcadm enable cron || fatal "unable to start cron"
 
-# This is the default cron on SunOS ... ish. Extra 'logadm' at 3:10am
-# removed. See MANTA-700.
+    #
+    # Set up a crontab based on the current SmartOS default.  The only
+    # differences are that we've removed comments and we've removed the logadm
+    # entry that fires at 0310Z, since we'll separately configure this to fire
+    # every hour on the hour.
+    #
     cat <<EOF  > /tmp/.manta_base_cron
-#
-#
-#
 15 3 * * 0 /usr/lib/fs/nfs/nfsfind
 30 3 * * * [ -x /usr/lib/gss/gsscred_clean ] && /usr/lib/gss/gsscred_clean
-#
-# The rtc command is run to adjust the real time clock if and when
-# daylight savings time changes.
-#
 1 2 * * * [ -x /usr/sbin/rtc ] && /usr/sbin/rtc -c > /dev/null 2>&1
 EOF
 
@@ -170,37 +218,45 @@ EOF
     rm -f /tmp/.manta_base_cron
 }
 
-
+#
+# manta_setup_registrar: set up the registrar service (by importing its SMF
+# manifest and enabling the service).  If the manifest isn't present, do
+# nothing.
+#
 function manta_setup_registrar {
     if [[ -f /opt/smartdc/registrar/smf/manifests/registrar.xml ]] ; then
-	svccfg import /opt/smartdc/registrar/smf/manifests/registrar.xml  || \
-	    fatal "unable to import registrar"
-	svcadm enable registrar || fatal "unable to start registrar"
+        svccfg import /opt/smartdc/registrar/smf/manifests/registrar.xml  || \
+            fatal "unable to import registrar"
+        svcadm enable registrar || fatal "unable to start registrar"
     fi
 }
 
-
-# Sets up a local instance of rsyslogd that forwards to a centralized rsyslogd
-# on the ops host. Note that this only sets up UDP and the "standard" Solaris
-# syslog(3C) listeners, as TCP has a ridiculous limitation of needing to bind
-# to all NICs.  At any rate, the only system that should be using TCP is the
-# centralized one anyway. And the only thing using UDP is haproxy - everything
-# else should be going through the syslog(3C) interface.
 #
-# Next, note that the sun syslog(3C) api annoyingly tacks some shit in your msg
-# such that you end up with a bunyan msg like:
-# [ID 702088 local1.emerg] {"name":"systest","hostname":"martin.local",...}
+# manta_setup_rsyslog SERVICE: sets up a local instance of rsyslogd that logs to
+# local files.  The file is put in /var/log/ and named based on SERVICE.
 #
-# So this configuration works around that with a nifty little regexp before the
-# line is written, so you can always do a bunyan /var/log/manta/<service>.log.
+# This used to forward logs to a centralized rsyslogd in the ops
+# zone, but that was broken for ages and was not dealing properly with log
+# growth anyway.  The eventual plan is to remove rsyslog entirely, but the
+# current configuration is a stepping stone that doesn't require reconfiguring
+# all services at once.
 #
-# Argument 1 is the name of the current service, so we route to a sane log file
-# in /var/log
+# Note that this only sets up UDP and the "standard" Solaris syslog(3C)
+# listeners, as TCP has a ridiculous limitation of needing to bind to all NICs.
+# The only system that should be using TCP is the centralized one in the ops
+# zone, and the only thing using UDP is haproxy.  Everything else should be
+# going through the syslog(3C) interface.
+#
+# Next, note that the Sun syslog(3C) API annoyingly tacks some garbage in your
+# message such that you end up with a bunyan message like this:
+#
+#   [ID 702088 local1.emerg] {"name":"systest","hostname":"martin.local",...}
+#
+# This configuration works around that with a nifty little regexp before the
+# line is written.  With this in place, you can use "bunyan
+# /var/log/manta/<service>.log."
 #
 function manta_setup_rsyslog {
-    local domain_name=$(json -f ${METADATA} domain_name)
-    [[ $? -eq 0 ]] || fatal "Unable to domain name from metadata"
-
     mkdir -p /var/tmp/rsyslog/work
     chmod 777 /var/tmp/rsyslog/work
 
@@ -211,19 +267,14 @@ $ModLoad immark
 $ModLoad imsolaris
 $ModLoad imudp
 
-
 $template bunyan,"%msg:R,ERE,1,FIELD:(\{.*\})--end%\n"
 
 *.err;kern.notice;auth.notice			/dev/sysmsg
 *.err;kern.debug;daemon.notice;mail.crit	/var/adm/messages
-
 *.alert;kern.err;daemon.err			operator
 *.alert						root
-
 *.emerg						*
-
 mail.debug					/var/log/syslog
-
 auth.info					/var/log/auth.log
 mail.info					/var/log/postfix.log
 
@@ -236,17 +287,16 @@ $ActionQueueSaveOnShutdown on
 HERE
 
     cat >> /etc/rsyslog.conf <<HERE
-
-# Support node bunyan logs going to local0 and forwarding
-# only as logs are already captured via SMF
-# Uncomment the following line to get local logs via syslog
+#
+# This is where we used to configure services to relay logs to the ops zone.
+# Eventually, we'll just rip out rsyslog completely.
+#
+# Uncomment the following line to get local logs via syslog.
 # local0.*    /var/log/$1.log;bunyan
-local0.* @@ops.$domain_name:10514
-
-# This is typically for HAProxy, but anything could use it
-# and get local logs via syslog
+#
+# This was at one time used for HAProxy, but anything could use it and get local
+# logs via syslog.
 local1.*    /var/log/$1.log
-local1.* @@ops.$domain_name:10514
 
 HERE
 
@@ -260,11 +310,24 @@ HERE
     [[ $? -eq 0 ]] || fatal "Unable to restart rsyslog"
 }
 
+#
+# manta_common_presetup: entry point invoked by the actual setup scripts to
+# trigger pre-setup actions defined in this file.
+#
 function manta_common_presetup {
     manta_setup_config_agent
 }
 
-# If argument 1 is an integer = 0, then log rotation is skipped
+#
+# manta_common_setup SERVICE_NAME [SKIP_LOGROTATE]: entry point invoked by the
+# actual setup scripts to trigger setup actions defined in this file.
+# SERVICE_NAME is used for naming log files.  (Note that some programmatic
+# configuration based on the service is hardcoded here, so don't change service
+# names without checking the code below.)  If SKIP_LOGROTATE is not specified or
+# is 0, then log rotation is configured for both common services and the service
+# called SERVICE_NAME.  If SKIP_LOGROTATE is specified and is non-zero, then log
+# rotation is only configured for the common services.
+#
 function manta_common_setup {
     manta_clear_dns_except_sdc
     manta_upload_metadata_values
@@ -275,26 +338,31 @@ function manta_common_setup {
     manta_setup_registrar
     if [[ $# -eq 1 ]] || [[ $# -ge 2 ]] && [[ "$2" -eq 0 ]]
     then
-	manta_setup_common_log_rotation $1
+        manta_setup_common_log_rotation $1
     else
         manta_setup_common_log_rotation
     fi
 
-    # Hack, but it's the only one we want to skip DNS on,
-    # seeing as it is the DNS server, and we'll have infinite
-    # recursion on any misses. MANTA-913: and syslog
-    if [[ "$1" != "binder" ]]
-    then
-	manta_update_dns
+    #
+    # There are a few hacks here:
+    #
+    # 1. For the "binder" zone, we want to skip DNS configuration because it's
+    #    the DNS server and we'd have infinite recursion on any misses.
+    #
+    # 2. For the "mola" zone (which is the "ops" zone), we want to skip the
+    #    usual rsyslog configuration because that zone is setup as a relay
+    #    target.
+    #
+    # These are regrettable.
+    #
+    if [[ "$1" != "binder" ]]; then
+        manta_update_dns
 
-	# We don't set up rsyslog for the ops zone, as that zone
-	# does its own setup for relay
-	if [[ "$1" != "mola" ]]
-	then
-	    manta_setup_rsyslog "$1"
-	fi
-
+        if [[ "$1" != "mola" ]]; then
+            manta_setup_rsyslog "$1"
+        fi
     fi
+
     manta_update_env
 
     # Setup NDD tunings
@@ -303,7 +371,10 @@ function manta_common_setup {
     /usr/sbin/ndd -set /dev/tcp tcp_conn_req_max_q0 8192
 }
 
-
+#
+# manta_common_setup_end: entry point invoked by the actual setup scripts to
+# trigger setup actions that should come after main setup actions.
+#
 function manta_common_setup_end {
     logadm -w mbackup -C 3 -c -s 1m '/var/log/mbackup.log'
     logadm -w smf_logs -C 3 -c -s 1m '/var/svc/log/*.log'
