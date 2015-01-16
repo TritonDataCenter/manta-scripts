@@ -83,11 +83,10 @@ for repo in "${REPOS[@]}"; do
     git submodule update $DEP_LOC
     cd $DEP_LOC
     git pull --rebase
-    git merge origin/master
+    git checkout $MS_GIT_SHA
     cd -
     git add $DEP_LOC
     git commit -m "$JIRA: Updating to latest manta-scripts ($MS_GIT_SHA_SHORT)"
-    git push origin master
     echo "Done updating $repo."
 
 done
