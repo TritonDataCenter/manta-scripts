@@ -73,10 +73,41 @@ each of the Manta component repositories.
 
 Note that this repository is used as a git submodule, and once updated, all
 repos that have this as a dependency need to be updated or *your changes will
-not get picked up*.  To update, run the update script like so:
+not get picked up*.
 
-    [manta-scripts]$ ./update/repos.sh <Jira Item>
+### Testing your changes locally
 
-In order for that script to work, you must have all of the manta repos cloned at
-../.  The full list can be found in the repos.sh script.  If there are problems
-during updates, the script can safely be rerun.
+It's strongly recommended to test your changes locally before pushing them
+upstream!  (You can also push to a feature branch if you prefer, but it's not
+necessarily any easier.)
+
+To test your changes locally, you'll need to follow the instructions in the
+[Manta developer's
+notes](https://github.com/joyent/manta/blob/master/docs/dev-notes.md) to build
+zone images.  Depending on your changes, you may want to test one or all of the
+zone images.
+
+Here's one approach for testing changes (mostly) locally.
+
+1. Push your manta-scripts change to a feature branch
+   ("dev-JIRA-TICKET-NUMBER").  You won't use the branch, but this makes the SHA
+   available in the canonical copy of the repo.
+2. In the parent directory of your manta-scripts clone, clone a copy of each of
+   the repos listed in the update/repos.sh script in this repository.
+3. Run the update script in this repo like so:
+
+    [manta-scripts]$ ./update/repos.sh <Jira Ticket Identifier>
+
+   This script updates the submodule dependency in each of these repos to point
+   to your changes.  It commits that change, but does not push it.  If there are
+   problems during updates, the script can safely be rerun.
+4. Use the instructions in the Manta developer's notes (linked above) to build a
+   zone image for whichever of these repos you want to test.  You'll wind up
+   modifying MG's targets.json.in to point at all the repos you cloned above.
+   You may find it easier to configure MG for building everything rather than
+   each repo separately, though you'll have to build the dependencies by hand
+   ("make config-agent registrar amon minnow mackerel" should nearly do it.)
+5. Test each zone image.
+6. When you're satisfied with your changes, push your manta-scripts change to
+   the #master branch, then push the submodule update for each of the repos you
+   cloned in step 2.
