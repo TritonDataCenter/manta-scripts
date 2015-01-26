@@ -56,34 +56,6 @@ function manta_add_manifest_dir {
     mv ${tmpfile} ${file}
 }
 
-#
-# manta_upload_metadata_values: For each network for which this zone is
-# configured, write zone metadata indicating its IP on that network.  This
-# iterates the zone metadata provided by SDC and maps network names to IP
-# addresses.  For example, we'll write properties like EXTERNAL_IP=X.X.X.X.
-#
-function manta_upload_metadata_values {
-    local update=/opt/smartdc/config-agent/bin/mdata-update
-
-    # Let's assume a zone will have at most four NICs
-    for i in $(seq 0 3); do
-        local ip=$(mdata-get sdc:nics.${i}.ip)
-        [[ $? -eq 0 ]] || ip=""
-        local tag=$(mdata-get sdc:nics.${i}.nic_tag)
-        [[ $? -eq 0 ]] || tag=""
-
-        # Want tag name to be uppercase
-        tag=$(echo ${tag} | tr 'a-z' 'A-Z')
-
-        if [[ -n ${ip} && -n ${tag} ]]; then
-            ${update} ${tag}_IP ${ip}
-
-            if [[ $i == 0 ]]; then
-                ${update} PRIMARY_IP ${ip}
-            fi
-        fi
-    done
-}
 
 #
 # manta_download_metadata: Fetch this zone's SAPI metadata and save it to
@@ -330,7 +302,6 @@ function manta_common_presetup {
 #
 function manta_common_setup {
     manta_clear_dns_except_sdc
-    manta_upload_metadata_values
     manta_download_metadata
     manta_enable_config_agent
     manta_setup_cron
