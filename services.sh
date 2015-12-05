@@ -62,11 +62,53 @@ function manta_add_manifest_dir {
 # the local path $METADATA.
 #
 function manta_download_metadata {
-    curl -s ${SAPI_URL}/configs/$(zonename) | json metadata > ${METADATA}
+    local url="$SAPI_URL/configs/$(zonename)"
+    local i=0
 
-    if [[ $? -ne 0 ]]; then
-        fatal "failed to download metadata from SAPI"
-    fi
+    while (( i++ < 30 )); do
+        #
+        # Make sure the temporary files do not exist:
+        #
+        rm -f "$METADATA.raw"
+        rm -f "$METADATA.extracted"
+
+        #
+        # Download SAPI configuration for this instance:
+        #
+        if ! curl -sSf -o "$METADATA.raw" "$url"; then
+            warn "could not download SAPI metadata (retrying)"
+            sleep 2
+            continue
+        fi
+
+        #
+        # Extract the metadata object from the SAPI configuration:
+        #
+        if ! json -f "$METADATA.raw" metadata > "$METADATA.extracted"; then
+            warn "could not parse SAPI metadata (retrying)"
+            sleep 2
+            continue
+        fi
+
+        #
+        # Make sure we did not write an empty file:
+        #
+        if [[ ! -s "$METADATA.extracted" ]]; then
+            fatal "metadata file was empty"
+        fi
+
+        #
+        # Move the metadata file into place:
+        #
+        if ! mv "$METADATA.extracted" "$METADATA"; then
+            fatal "could not move metadata file into place"
+        fi
+
+        rm -f "$METADATA.raw"
+        return 0
+    done
+
+    fatal "failed to download SAPI configuration (too many retries)"
 }
 
 #

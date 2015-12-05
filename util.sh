@@ -29,6 +29,13 @@ function fatal {
 }
 
 #
+# warn MESSAGE ...: dump MESSAGE to stderr but do not exit
+#
+function warn {
+    echo "$(basename $0): WARNING: $*" >&2
+}
+
+#
 # manta_add_logadm_entry PATTERN [LOGDIR [MATCH-MODE]]: creates an entry in
 # /etc/logadm.conf for hourly log rotation of files matching PATTERN in LOGDIR.
 # Logs are rotated into /var/log/manta and eventually uploaded back to Manta.
