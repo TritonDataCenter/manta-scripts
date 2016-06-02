@@ -64,49 +64,6 @@ function manta_add_logadm_entry {
 }
 
 #
-# manta_ensure_manatee: waits up to about 90 seconds for the zookeeper cluster
-# to come online and for the local manatee cluster to come online.  It's a fatal
-# error if this doesn't happen within the alloted timeout.
-#
-function manta_ensure_manatee {
-    local attempt=0
-    local isok=0
-    local pgok
-    local zkok
-
-    local zonename=$(zonename)
-
-    local svc_name=$(json -f ${METADATA} SERVICE_NAME)
-    local zk_ips=$(json -f ${METADATA} ZK_SERVERS | json -a host)
-
-    if [[ $? -ne 0 ]]; then
-	zk_ips=127.0.0.1
-    fi
-
-    while [[ $attempt -lt 90 ]]; do
-	for ip in $zk_ips; do
-	    zkok=$(echo "ruok" | nc -w 1 $ip 2181)
-	    if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]; then
-		pgip=$(/opt/smartdc/moray/node_modules/.bin/manatee-stat \
-		    -s $svc_name $ip | json primary.ip)
-		if [[ $? -eq 0 ]] && [[ -n "$pgip" ]]; then
-		    isok=1
-		    break
-		fi
-	    fi
-	done
-
-	if [[ $isok -eq 1 ]]; then
-	    break
-	fi
-
-	let attempt=attempt+1
-	sleep 1
-    done
-    [[ $isok -eq 1 ]] || fatal "manatee is not up"
-}
-
-#
 # manta_ensure_moray MORAY_HOST: waits up to about 90 seconds for a moray shard
 # to come online.  It's a fatal error if this doesn't happen within the allotted
 # timeout.
