@@ -117,7 +117,7 @@ function manta_download_metadata {
 #
 function manta_enable_config_agent {
     svccfg import /opt/smartdc/config-agent/smf/manifests/config-agent.xml
-    svcadm enable config-agent
+    svcadm enable -s config-agent
 }
 
 
