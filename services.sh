@@ -115,9 +115,19 @@ function manta_download_metadata {
 # manta_enable_config_agent: Enable this zone's configuration agent (by
 # importing its SMF manifest and enabling the service).
 #
+# If mdata:execute is being *re*-run, we want to be sure that config-agent
+# is restarted so that manifests are synchronously re-written if necessary.
+# Specifically this matters for /etc/resolv.conf which is typically modified
+# earlier in the setup by manta_clear_dns_except_sdc.
+#
 function manta_enable_config_agent {
-    svccfg import /opt/smartdc/config-agent/smf/manifests/config-agent.xml
-    svcadm enable -s config-agent
+    if ! svcs config-agent 2>/dev/null >/dev/null; then
+        svccfg import /opt/smartdc/config-agent/smf/manifests/config-agent.xml
+        svcadm enable -s config-agent
+    else
+        svcadm disable -s config-agent
+        svcadm enable -s config-agent
+    fi
 }
 
 
