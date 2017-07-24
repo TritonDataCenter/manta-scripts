@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (c) 2014, Joyent, Inc.
+# Copyright (c) 2017, Joyent, Inc.
 #
 
 #
@@ -31,6 +31,7 @@ export PATH=/opt/local/bin:$PATH
 # Immutables
 
 SSH_KEY=/root/.ssh/id_rsa
+BACKUP_LOCKFILE=/tmp/backup_lockfile
 
 MANTA_KEY_ID=$(ssh-keygen -l -f $SSH_KEY.pub | awk '{print $2}')
 MANTA_URL=$(json -f /opt/smartdc/common/etc/config.json manta.url)
@@ -68,6 +69,57 @@ function sign() {
 }
 
 
+# $1 -> lockfile to create
+# $$ pid of this script
+function create_lockfile() {
+    # Creating the tempfile can race, but
+    # ln(1) is atomic, so that's the true locking
+    # operation
+    TEMPFILE="$1.$$"
+    LOCKFILE="$1.lock"
+    if ! echo $$ > $TEMPFILE 2>/dev/null; then
+        echo "Unable to write to directory: $(dirname $TEMPFILE)" >&2
+        return 1
+    fi
+
+    # Create lock, remove TEMPFILE
+    #
+    # Use ln(1) to move the temporary file into place because,
+    # unlike mv(1), it will fail if the destination existed
+    # already.
+    if /usr/bin/ln "$TEMPFILE" "$LOCKFILE" 2>/dev/null; then
+        /usr/bin/rm -f "$TEMPFILE"
+        return 0
+    fi
+
+    STALE_PID=`< $LOCKFILE`
+    if [[ ! "$STALE_PID" -gt "0" ]]; then
+        /usr/bin/rm -f "$TEMPFILE"
+        return 1
+    fi
+
+    # Test if PID from lockfile is running
+    # If it is still running, the function will return here
+    if /usr/bin/kill -0 "$STALE_PID" 2>/dev/null; then
+        /usr/bin/rm -f "$TEMPFILE"
+        return 1
+    fi
+
+    # PID was stale, remove it
+    if /usr/bin/rm "$LOCKFILE" 2>/dev/null; then
+        echo "Removed stale lock file of process $STALE_PID"
+    fi
+
+    if /usr/bin/ln "$TEMPFILE" "$LOCKFILE" 2>/dev/null; then
+        /usr/bin/rm -f "$TEMPFILE"
+        return 0
+    fi
+
+    /usr/bin/rm -f "$TEMPFILE"
+    return 1
+}
+
+
 function manta_put() {
     sign || fail "unable to sign"
     curl -fisSk \
@@ -97,6 +149,14 @@ function mkdirp() {
 }
 
 
+# Cleanup code
+function finish {
+    # Remove lockfile and tempfile on exit
+    /usr/bin/rm -f "$BACKUP_LOCKFILE.lock"
+    /usr/bin/rm -f "$BACKUP_LOCKFILE.$$"
+}
+trap finish EXIT
+
 
 ## Mainline
 
@@ -104,6 +164,12 @@ function mkdirp() {
 #     muskie_0db94777-555d-4f1a-a87f-b1e2ee13c025_2012-10-17T21:00:00.log
 # And we transform them to this in manta:
 #     /poseidon/stor/logs/muskie/2012/10/17/20/0db94777.log
+
+# Do not run if this script is being run already
+if ! create_lockfile $BACKUP_LOCKFILE; then
+    fail "backup is already running"
+fi
+
 
 for f in $(ls /var/log/manta/upload/*.log)
 do
@@ -114,5 +180,5 @@ do
     key="/logs/$service/$time/$zone.log"
     mkdirp $service $time
     manta_put "$key" "$LOG_TYPE" "-T $f"
-    rm $f
+    /usr/bin/rm "$f"
 done
