@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (c) 2014, Joyent, Inc.
+# Copyright (c) 2017, Joyent, Inc.
 #
 
 ###############################################################################
@@ -18,6 +18,8 @@
 # It will only update the repos that are out of date, so if there are problems
 # with repos, you can fix and safely rerun.
 ###############################################################################
+
+set -o xtrace
 
 REPOS=(
     binder
@@ -72,7 +74,7 @@ for repo in "${REPOS[@]}"; do
         continue
     fi
 
-    REPO_GIT_SHA=$(git submodule $DEP_LOC | cut -c 2-41)
+    REPO_GIT_SHA=$(git submodule status $DEP_LOC | cut -c 2-41)
     if [ "$MS_GIT_SHA" == "$REPO_GIT_SHA" ]; then
         echo "$repo already has latest manta-scripts.  Not updating."
         continue
