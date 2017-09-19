@@ -15,7 +15,7 @@
 
 echo ""   # blank line in log file helps scroll btwn instances
 set -o errexit
-export PS4='[\D{%FT%TZ}] ${BASH_SOURCE}:${LINENO}: ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
+export PS4='[\D{%FT%TZ}] ${BASHPID}: ${BASH_SOURCE}:${LINENO}: ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 set -o xtrace
 
 
@@ -92,7 +92,7 @@ function create_lockfile() {
         return 0
     fi
 
-    STALE_PID=`< $LOCKFILE`
+    STALE_PID=$(< $LOCKFILE)
     if [[ ! "$STALE_PID" -gt "0" ]]; then
         /usr/bin/rm -f "$TEMPFILE"
         return 1
@@ -105,7 +105,8 @@ function create_lockfile() {
         return 1
     fi
 
-    # PID was stale, remove it
+    # PID was stale, remove it, then attempt to create lockfile
+    # again
     if /usr/bin/rm "$LOCKFILE" 2>/dev/null; then
         echo "Removed stale lock file of process $STALE_PID"
     fi
@@ -115,6 +116,7 @@ function create_lockfile() {
         return 0
     fi
 
+    # Creating lockfile failed, cleanup and error out
     /usr/bin/rm -f "$TEMPFILE"
     return 1
 }
@@ -151,8 +153,7 @@ function mkdirp() {
 
 # Cleanup code
 function finish {
-    # Remove lockfile and tempfile on exit
-    /usr/bin/rm -f "$BACKUP_LOCKFILE.lock"
+    # Remove tempfile on exit
     /usr/bin/rm -f "$BACKUP_LOCKFILE.$$"
 }
 trap finish EXIT
@@ -167,7 +168,8 @@ trap finish EXIT
 
 # Do not run if this script is being run already
 if ! create_lockfile $BACKUP_LOCKFILE; then
-    fail "backup is already running"
+    RPID=$(< $LOCKFILE)
+    fail "backup is already running on pid: $RPID"
 fi
 
 
@@ -182,3 +184,7 @@ do
     manta_put "$key" "$LOG_TYPE" "-T $f"
     /usr/bin/rm "$f"
 done
+
+# Remove lockfile only if everything succeeded, otherwise it will get cleaned
+# up as a stale pid on a following run
+/usr/bin/rm -f "$BACKUP_LOCKFILE.lock"
