@@ -6,25 +6,21 @@
 #
 
 #
-# Copyright (c) 2017, Joyent, Inc.
+# Copyright (c) 2018, Joyent, Inc.
 #
 
 #
 # Push /var/log/manta/upload/... log files up to Manta.
 #
 
-echo ""   # blank line in log file helps scroll btwn instances
+echo        # blank line in log file helps scroll btwn instances
 set -o errexit
 export PS4='[\D{%FT%TZ}] ${BASHPID}: ${BASH_SOURCE}:${LINENO}: ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 set -o xtrace
 
-
-
 ## Environment setup
 
 export PATH=/opt/local/bin:$PATH
-
-
 
 ## Global variables
 
@@ -33,11 +29,11 @@ export PATH=/opt/local/bin:$PATH
 SSH_KEY=/root/.ssh/id_rsa
 BACKUP_LOCKFILE=/tmp/backup_lockfile
 
-MANTA_KEY_ID=$(ssh-keygen -l -f $SSH_KEY.pub | awk '{print $2}')
+MANTA_KEY_ID=$(ssh-keygen -l -f "$SSH_KEY.pub" | awk '{print $2}')
 MANTA_URL=$(json -f /opt/smartdc/common/etc/config.json manta.url)
 MANTA_USER=poseidon
 rejectUnauthorized=$(json -f /opt/smartdc/common/etc/config.json manta.rejectUnauthorized)
-if [[ $rejectUnauthorized = "true" ]]; then
+if [[ $rejectUnauthorized == "true" ]]; then
     MANTA_TLS_INSECURE=0
 else
     MANTA_TLS_INSECURE=1
@@ -49,25 +45,21 @@ LOG_TYPE='text/plain'
 
 # Mutables
 
-NOW=""
-SIGNATURE=""
-
-
+NOW=
+SIGNATURE=
 
 ## Functions
 
 function fail() {
-    echo "$*" >&2
+    echo "$@" >&2
     exit 1
 }
 
-
 function sign() {
     NOW=$(date -u "+%a, %d %h %Y %H:%M:%S GMT")
-    SIGNATURE=$(echo "date: $NOW" | tr -d '\n' | openssl dgst -sha256 -sign $SSH_KEY | openssl enc -e -a | tr -d '\n') \
+    SIGNATURE=$(echo "date: $NOW" | tr -d '\n' | openssl dgst -sha256 -sign "$SSH_KEY" | openssl enc -e -a | tr -d '\n') \
 	|| fail "unable to sign data"
 }
-
 
 # $1 -> lockfile to create
 # $$ pid of this script
@@ -77,8 +69,8 @@ function create_lockfile() {
     # operation
     TEMPFILE="$1.$$"
     LOCKFILE="$1.lock"
-    if ! echo $$ > $TEMPFILE 2>/dev/null; then
-        echo "Unable to write to directory: $(dirname $TEMPFILE)" >&2
+    if ! echo $$ > "$TEMPFILE" 2>/dev/null; then
+        echo "Unable to write to directory: $(dirname "$TEMPFILE")" >&2
         return 1
     fi
 
@@ -88,20 +80,20 @@ function create_lockfile() {
     # unlike mv(1), it will fail if the destination existed
     # already.
     if /usr/bin/ln "$TEMPFILE" "$LOCKFILE" 2>/dev/null; then
-        /usr/bin/rm -f "$TEMPFILE"
+        /usr/bin/rm -f -- "$TEMPFILE"
         return 0
     fi
 
-    STALE_PID=$(< $LOCKFILE)
+    STALE_PID=$(< "$LOCKFILE")
     if [[ ! "$STALE_PID" -gt "0" ]]; then
-        /usr/bin/rm -f "$TEMPFILE"
+        /usr/bin/rm -f -- "$TEMPFILE"
         return 1
     fi
 
     # Test if PID from lockfile is running
     # If it is still running, the function will return here
     if /usr/bin/kill -0 "$STALE_PID" 2>/dev/null; then
-        /usr/bin/rm -f "$TEMPFILE"
+        /usr/bin/rm -f -- "$TEMPFILE"
         return 1
     fi
 
@@ -112,12 +104,12 @@ function create_lockfile() {
     fi
 
     if /usr/bin/ln "$TEMPFILE" "$LOCKFILE" 2>/dev/null; then
-        /usr/bin/rm -f "$TEMPFILE"
+        /usr/bin/rm -f -- "$TEMPFILE"
         return 0
     fi
 
     # Creating lockfile failed, cleanup and error out
-    /usr/bin/rm -f "$TEMPFILE"
+    /usr/bin/rm -f -- "$TEMPFILE"
     return 1
 }
 
@@ -137,10 +129,10 @@ function manta_put() {
 # $1 -> service
 # $2 -> YYYY/MM/DD/HH
 function mkdirp() {
-    local year=$(echo $2 | awk -F / '{print $1}')
-    local month=$(echo $2 | awk -F / '{print $2}')
-    local day=$(echo $2 | awk -F / '{print $3}')
-    local hour=$(echo $2 | awk -F / '{print $4}')
+    local year=$(awk -F / '{print $1}' <<<"$2")
+    local month=$(awk -F / '{print $2}' <<<"$2")
+    local day=$(awk -F / '{print $3}' <<<"$2")
+    local hour=$(awk -F / '{print $4}' <<<"$2")
 
     manta_put "/logs" "$DIR_TYPE"
     manta_put "/logs/$1" "$DIR_TYPE"
@@ -154,7 +146,7 @@ function mkdirp() {
 # Cleanup code
 function finish {
     # Remove tempfile on exit
-    /usr/bin/rm -f "$BACKUP_LOCKFILE.$$"
+    /usr/bin/rm -f -- "$BACKUP_LOCKFILE.$$"
 }
 trap finish EXIT
 
@@ -167,24 +159,25 @@ trap finish EXIT
 #     /poseidon/stor/logs/muskie/2012/10/17/20/0db94777.log
 
 # Do not run if this script is being run already
-if ! create_lockfile $BACKUP_LOCKFILE; then
-    RPID=$(< $LOCKFILE)
+if ! create_lockfile "$BACKUP_LOCKFILE"; then
+    RPID=$(< "$LOCKFILE")
     fail "backup is already running on pid: $RPID"
 fi
 
-
-for f in $(ls /var/log/manta/upload/*.log)
+shopt -s nullglob
+for f in /var/log/manta/upload/*.log
 do
-    service=$(echo $f | cut -d _ -f 1 | cut -d / -f 6)
-    zone=$(echo $f | cut -d _ -f 2 | cut -d - -f 1)
-    logtime=$(echo $f | cut -d _ -f 3 | sed 's|.log||')
-    time=$(date -d \@$(( $(date -d $logtime "+%s") - 3600 )) "+%Y/%m/%d/%H")
+    service=$(echo "$f" | cut -d _ -f 1 | cut -d / -f 6)
+    zone=$(echo "$f" | cut -d _ -f 2 | cut -d - -f 1)
+    logtime=$(echo "$f" | cut -d _ -f 3 | sed 's|.log||')
+    time=$(date -d \@$(( $(date -d "$logtime" "+%s") - 3600 )) "+%Y/%m/%d/%H")
     key="/logs/$service/$time/$zone.log"
-    mkdirp $service $time
+    mkdirp "$service" "$time"
     manta_put "$key" "$LOG_TYPE" "-T $f"
-    /usr/bin/rm "$f"
+    /usr/bin/rm -- "$f"
 done
+shopt -u nullglob
 
 # Remove lockfile only if everything succeeded, otherwise it will get cleaned
 # up as a stale pid on a following run
-/usr/bin/rm -f "$BACKUP_LOCKFILE.lock"
+/usr/bin/rm -f -- "$BACKUP_LOCKFILE.lock"
