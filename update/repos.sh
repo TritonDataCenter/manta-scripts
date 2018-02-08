@@ -34,6 +34,7 @@ REPOS=(
     manta-mola
     manta-muskie
     manta-propeller
+    manta-reshard
     manta-wrasse
     moray
     muppet

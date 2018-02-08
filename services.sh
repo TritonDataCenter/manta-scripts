@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (c) 2015, Joyent, Inc.
+# Copyright (c) 2018, Joyent, Inc.
 #
 
 #
@@ -34,7 +34,7 @@ function manta_setup_config_agent {
     cat >${prefix}/etc/config.json <<EOF
 {
     "logLevel": "info",
-    "pollInterval": 10000,
+    "pollInterval": 120000,
     "sapi": {
         "url": "${SAPI_URL}"
     },
