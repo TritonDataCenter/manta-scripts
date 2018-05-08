@@ -176,9 +176,13 @@ function manta_setup_common_log_rotation {
     logadm -w /var/adm/messages -C 4 -a 'kill -HUP `cat /var/run/rsyslogd.pid`'
 
     #
-    # We want to rotate smf_logs last, so we'll remove it here and re-add it
-    # below, in manta_common_setup_end, after all of our other changes.
-    # XXX
+    # We want to rotate smf_logs and /var/log/*.log last so they don't override
+    # our log rotation rules for files otherwise caught in their glob pattern,
+    # We'll remove those entries here and re-add them below, in
+    # manta_common_setup_end, after all of our other changes.
+    #
+    # The "/var/log/*.debug" entry is vestigial for old vmadm logs (see
+    # MANTA-3684) and can be removed.
     #
     logadm -r smf_logs
     logadm -r '/var/log/*.log'
@@ -202,7 +206,8 @@ function manta_setup_common_log_rotation {
     # trying again at the next hour.
     #
     crontab -l > /tmp/.manta_logadm_cron
-    echo '0 * * * * /usr/sbin/logadm' >> /tmp/.manta_logadm_cron
+    echo '0 * * * * /usr/sbin/logadm -v >> /var/log/logadm.log 2>&1' \
+        >> /tmp/.manta_logadm_cron
     echo '1,2,3,4,5 * * * * /opt/smartdc/common/sbin/backup.sh >> /var/log/mbackup.log 2>&1' \
         >> /tmp/.manta_logadm_cron
     crontab /tmp/.manta_logadm_cron
@@ -394,7 +399,5 @@ function manta_common_setup {
 function manta_common_setup_end {
     logadm -w mbackup -C 3 -c -s 1m '/var/log/mbackup.log'
     logadm -w smf_logs -C 3 -c -s 1m '/var/svc/log/*.log'
-
-    # XXX intentionally don't restore the *.debug entry
     logadm -w '/var/log/*.log' -C 2 -c -s 5m
 }
