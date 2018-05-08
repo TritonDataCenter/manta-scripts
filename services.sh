@@ -178,8 +178,11 @@ function manta_setup_common_log_rotation {
     #
     # We want to rotate smf_logs last, so we'll remove it here and re-add it
     # below, in manta_common_setup_end, after all of our other changes.
+    # XXX
     #
     logadm -r smf_logs
+    logadm -r '/var/log/*.log'
+    logadm -r '/var/log/*.debug'
 
     #
     # Add the logadm configurations for the config-agent and registrar services
@@ -391,4 +394,7 @@ function manta_common_setup {
 function manta_common_setup_end {
     logadm -w mbackup -C 3 -c -s 1m '/var/log/mbackup.log'
     logadm -w smf_logs -C 3 -c -s 1m '/var/svc/log/*.log'
+
+    # XXX intentionally don't restore the *.debug entry
+    logadm -w '/var/log/*.log' -C 2 -c -s 5m
 }
