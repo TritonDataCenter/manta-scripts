@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (c) 2017, Joyent, Inc.
+# Copyright (c) 2019, Joyent, Inc.
 #
 
 ###############################################################################
@@ -33,7 +33,6 @@ REPOS=(
     manta-medusa
     manta-mola
     manta-muskie
-    manta-propeller
     manta-reshard
     manta-wrasse
     moray
