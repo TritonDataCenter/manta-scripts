@@ -215,6 +215,89 @@ function manta_setup_common_log_rotation {
 }
 
 #
+# manta_buckets_setup_common_log_rotation [SERVICE]: set up cron to rotate logs,
+# and then configure log rotation for log files common to all Manta zones.  If
+# SERVICE is not specified, then only the truly common logs will be set up.  If
+# SERVICE is given, then logs in /var/svc/log for each instance of SERVCIE will
+# also be rotated (which are SMF service logs).
+#
+# This works as follows: logadm is configured to rotate the common service logs
+# (i.e., config-agent and registrar) as well as any additional Manta service
+# logs (i.e., whatever's installed in this zone, like buckets-api, mako, or
+# whatever).  The rotated logs are dropped into /var/log/manta/upload.  cron is
+# configured to run logadm every hour on the hour, so each hour's logs get
+# dropped into /var/log/manta/upload at the top of each hour.  Separately, cron
+# is configured to run the log uploader script (backup.sh) every hour, which
+# uploads any logs it finds in /var/log/manta/upload up to Manta and then
+# removes the local copies.  If Manta is down when this happens, the log files
+# will remain in /var/log/manta/upload until the next hour when Manta is up, at
+# which point they'll be uploaded and then the local copies will be removed.
+#
+# This function relies on SERVICE already being set up in order to determine the
+# number of instances of SERVICE so it SHOULD NOT be called until after SERVICE
+# has been initialized.
+function manta_buckets_setup_common_log_rotation {
+    echo "Setting up common log rotation entries"
+
+    #
+    # Create /var/log/manta/upload, where we store files ready to be uploaded.
+    #
+    mkdir -p /var/log/manta/upload
+    chown root:sys /var/log/manta/upload
+
+    #
+    # Copy the log uploader into a place where cron can run it.
+    #
+    local DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    mkdir -p /opt/smartdc/common/sbin
+    cp ${DIR}/backup.sh /opt/smartdc/common/sbin
+    chmod 755 /opt/smartdc/common/sbin/backup.sh
+    chown root:sys /opt/smartdc/common
+
+    #
+    # Ensure that log rotation HUPs *r*syslog.
+    #
+    logadm -r /var/adm/messages
+    logadm -w /var/adm/messages -C 4 -a 'kill -HUP `cat /var/run/rsyslogd.pid`'
+
+    #
+    # We want to rotate smf_logs and /var/log/*.log last so they don't override
+    # our log rotation rules for files otherwise caught in their glob pattern,
+    # We'll remove those entries here and re-add them below, in
+    # manta_common_setup_end, after all of our other changes.
+    #
+    # The "/var/log/*.debug" entry is vestigial for old vmadm logs (see
+    # MANTA-3684) and can be removed.
+    #
+    logadm -r smf_logs
+    logadm -r '/var/log/*.log'
+    logadm -r '/var/log/*.debug'
+
+    #
+    # Add the logadm configurations for the config-agent and registrar services
+    # (which are present in every zone), plus the one we've been given.
+    #
+    manta_add_logadm_entry "config-agent"
+    manta_add_logadm_entry "registrar"
+    if [[ $# -ge 1 ]]; then
+        for port in `svcs -H -o fmri $1 | grep -v default | cut -f4 -d-`
+        do
+            manta_buckets_add_logadm_entry $1 $port
+        done
+    fi
+
+    #
+    # Finally, update the crontab to invoke the log rotation and upload script hourly (to rotate logs into
+    # /var/log/manta/upload) and then upload after that.
+    #
+    crontab -l > /tmp/.manta_logadm_cron
+    echo '0 * * * * /opt/smartdc/common/sbin/logupload.sh >> /var/log/logupload.log 2>&1' \
+        >> /tmp/.manta_logadm_cron
+    crontab /tmp/.manta_logadm_cron
+    rm -f /tmp/.manta_logadm_cron
+}
+
+#
 # manta_setup_cron: set up the cron service (by importing its SMF manifest and
 # enabling the service).
 #
@@ -291,14 +374,14 @@ $ModLoad imudp
 
 $template bunyan,"%msg:R,ERE,1,FIELD:(\{.*\})--end%\n"
 
-*.err;kern.notice;auth.notice			/dev/sysmsg
-*.err;kern.debug;daemon.notice;mail.crit	/var/adm/messages
-*.alert;kern.err;daemon.err			operator
-*.alert						root
-*.emerg						*
-mail.debug					/var/log/syslog
-auth.info					/var/log/auth.log
-mail.info					/var/log/postfix.log
+*.err;kern.notice;auth.notice                   /dev/sysmsg
+*.err;kern.debug;daemon.notice;mail.crit        /var/adm/messages
+*.alert;kern.err;daemon.err                     operator
+*.alert                                         root
+*.emerg                                         *
+mail.debug                                      /var/log/syslog
+auth.info                                       /var/log/auth.log
+mail.info                                       /var/log/postfix.log
 
 $WorkDirectory /var/tmp/rsyslog/work
 $ActionQueueType Direct
@@ -382,6 +465,41 @@ function manta_common_setup {
         if [[ "$1" != "mola" ]]; then
             manta_setup_rsyslog "$1"
         fi
+    fi
+
+    manta_update_env
+
+    # Setup NDD tunings
+    ipadm set-prop -t -p max_buf=2097152 tcp || true
+    /usr/sbin/ndd -set /dev/tcp tcp_conn_req_max_q 2048
+    /usr/sbin/ndd -set /dev/tcp tcp_conn_req_max_q0 8192
+}
+
+#
+# manta_buckets_common_setup SERVICE_NAME: entry point invoked by the
+# actual setup scripts to trigger setup actions defined in this file.
+# SERVICE_NAME is used for naming log files.  (Note that some programmatic
+# configuration based on the service is hardcoded here, so don't change service
+# names without checking the code below.)
+#
+function manta_buckets_common_setup {
+    manta_clear_dns_except_sdc
+    manta_download_metadata
+    manta_enable_config_agent
+    manta_setup_cron
+    manta_setup_amon_agent
+    manta_setup_registrar
+
+    #
+    # There are a few hacks here:
+    #
+    # 1. For the "binder" zone, we want to skip DNS configuration because it's
+    #    the DNS server and we'd have infinite recursion on any misses.
+    #
+    # These are regrettable.
+    #
+    if [[ "$1" != "binder" ]]; then
+        manta_update_dns
     fi
 
     manta_update_env
