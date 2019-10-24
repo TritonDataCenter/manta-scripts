@@ -186,7 +186,7 @@ if ! create_lockfile $BACKUP_LOCKFILE; then
     fail "backup is already running on pid: $RPID"
 fi
 
-log "beginning log file upload"
+echo "beginning log file upload"
 for f in $(ls /var/log/manta/upload/*.log)
 do
     service=$(echo $f | cut -d _ -f 1 | cut -d / -f 6)
