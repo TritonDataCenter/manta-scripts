@@ -252,6 +252,8 @@ function manta_buckets_setup_common_log_rotation {
     mkdir -p /opt/smartdc/common/sbin
     cp ${DIR}/backup.sh /opt/smartdc/common/sbin
     chmod 755 /opt/smartdc/common/sbin/backup.sh
+    cp ${DIR}/logupload.sh /opt/smartdc/common/sbin
+    chmod 755 /opt/smartdc/common/sbin/logupload.sh
     chown root:sys /opt/smartdc/common
 
     #
