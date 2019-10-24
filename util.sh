@@ -83,8 +83,8 @@ function manta_buckets_add_logadm_entry {
     fi
 
     local pattern="$logdir/*$service-$port*.log"
-    logadm -w $1 -C 48 -c -p 1h \
-        -t "/var/log/manta/upload/$1_\$nodename_$2_%FT%H:00:00.log" \
+    logadm -w "$1-$2" -C 48 -c -p 1h \
+        -t "/var/log/manta/upload/$1_\$nodename_%FT%H:00:00_$2.log" \
         "$pattern" || fatal "unable to create logadm entry"
 }
 

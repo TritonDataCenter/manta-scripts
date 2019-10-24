@@ -56,10 +56,6 @@ SIGNATURE=""
 
 ## Functions
 
-function log() {
-    echo "$(date --rfc-3339=seconds): $1"
-}
-
 function fail() {
     echo "$*" >&2
     exit 1
@@ -167,16 +163,16 @@ trap finish EXIT
 
 # The first step is to kick off logadm to do the file rotation and wait for it
 # to complete.
-log "beginning log rotation"
+echo "beginning log rotation"
 /usr/sbin/logadm -v >> /var/log/logadm.log 2>&1
-log "log rotation complete"
+echo "log rotation complete"
 
 # To help avoid a deluge of updates from every manta service immediately at the
 # top of every hour we first sleep for a random time between zero and ten
 # minutes and then proceed with uploading the log files.
 sleeptime=$((RANDOM % 11))
-log "delaying log upload for $sleeptime minutes"
-sleep $(($sleeptime * 60000))
+echo "delaying log upload for $sleeptime minutes"
+sleep $(($sleeptime * 60))
 
 
 # Files look like this:
@@ -195,15 +191,20 @@ for f in $(ls /var/log/manta/upload/*.log)
 do
     service=$(echo $f | cut -d _ -f 1 | cut -d / -f 6)
     zone=$(echo $f | cut -d _ -f 2 | cut -d - -f 1)
-    instance=$(echo $f | cut -d _ -f 3 | cut -d - -f 1)
-    logtime=$(echo $f | cut -d _ -f 4 | sed 's|.log||')
+    logtime=$(echo $f | cut -d _ -f 3)
+    instance=$(echo $f | cut -d _ -f 4 | sed 's|.log||')
+    # Not every service will have multiple instances so take that into account
+    # when building the upload key
+    if [[ ! -z "$instance" ]]; then
+        instance=".$instance"
+    fi
     time=$(date -d \@$(( $(date -d $logtime "+%s") - 3600 )) "+%Y/%m/%d/%H")
-    key="/logs/$service/$time/$zone.$instance.log"
+    key="/logs/$service/$time/$zone$instance.log"
     mkdirp $service $time
     manta_put "$key" "$LOG_TYPE" "-T $f"
     /usr/bin/rm "$f"
 done
-log "log file upload complete"
+echo "log file upload complete"
 
 # Remove lockfile only if everything succeeded, otherwise it will get cleaned
 # up as a stale pid on a following run
