@@ -191,7 +191,7 @@ for f in $(ls /var/log/manta/upload/*.log)
 do
     service=$(echo $f | cut -d _ -f 1 | cut -d / -f 6)
     zone=$(echo $f | cut -d _ -f 2 | cut -d - -f 1)
-    logtime=$(echo $f | cut -d _ -f 3)
+    logtime=$(echo $f | cut -d _ -f 3 | sed 's|.log||')
     instance=$(echo $f | cut -d _ -f 4 | sed 's|.log||')
     # Not every service will have multiple instances so take that into account
     # when building the upload key
