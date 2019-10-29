@@ -218,7 +218,7 @@ function manta_setup_common_log_rotation {
 # manta_buckets_setup_common_log_rotation [SERVICE]: set up cron to rotate logs,
 # and then configure log rotation for log files common to all Manta zones.  If
 # SERVICE is not specified, then only the truly common logs will be set up.  If
-# SERVICE is given, then logs in /var/svc/log for each instance of SERVCIE will
+# SERVICE is given, then logs in /var/svc/log for each instance of SERVICE will
 # also be rotated (which are SMF service logs).
 #
 # This works as follows: logadm is configured to rotate the common service logs
@@ -252,8 +252,8 @@ function manta_buckets_setup_common_log_rotation {
     mkdir -p /opt/smartdc/common/sbin
     cp ${DIR}/backup.sh /opt/smartdc/common/sbin
     chmod 755 /opt/smartdc/common/sbin/backup.sh
-    cp ${DIR}/logupload.sh /opt/smartdc/common/sbin
-    chmod 755 /opt/smartdc/common/sbin/logupload.sh
+    cp ${DIR}/logrotateandupload.sh /opt/smartdc/common/sbin
+    chmod 755 /opt/smartdc/common/sbin/logrotateandupload.sh
     chown root:sys /opt/smartdc/common
 
     #
@@ -282,10 +282,18 @@ function manta_buckets_setup_common_log_rotation {
     manta_add_logadm_entry "config-agent"
     manta_add_logadm_entry "registrar"
     if [[ $# -ge 1 ]]; then
-        for port in `svcs -H -o fmri $1 | grep -v default | cut -f4 -d-`
+        for port in `svcs -H -o fmri $1 | grep -v default | sed s/'.*-'//`
         do
-            manta_buckets_add_logadm_entry $1 $port
+            pattern="$logdir/*:$service-$port.log"
+            logadm -w "$1-$port" -C 48 -c -p 1h \
+                   -t "/var/log/manta/upload/$1_\$nodename_%FT%H:00:00_$port.log" \
+                   "$pattern" || fatal "unable to create logadm entry"
         done
+
+        pattern="$logdir/*$service:default.log"
+        logadm -w "$1" -C 48 -c -p 1h \
+               -t "/var/log/manta/upload/$1_\$nodename_%FT%H:00:00.log" \
+               "$pattern" || fatal "unable to create logadm entry"
     fi
 
     #
@@ -293,7 +301,7 @@ function manta_buckets_setup_common_log_rotation {
     # /var/log/manta/upload) and then upload after that.
     #
     crontab -l > /tmp/.manta_logadm_cron
-    echo '0 * * * * /opt/smartdc/common/sbin/logupload.sh >> /var/log/logupload.log 2>&1' \
+    echo '0 * * * * /opt/smartdc/common/sbin/logrotateandupload.sh >> /var/log/logrotateandupload.log 2>&1' \
         >> /tmp/.manta_logadm_cron
     crontab /tmp/.manta_logadm_cron
     rm -f /tmp/.manta_logadm_cron
@@ -518,6 +526,16 @@ function manta_buckets_common_setup {
 #
 function manta_common_setup_end {
     logadm -w mbackup -C 3 -c -s 1m '/var/log/mbackup.log'
+    logadm -w smf_logs -C 3 -c -s 1m '/var/svc/log/*.log'
+    logadm -w '/var/log/*.log' -C 2 -c -s 5m
+}
+
+#
+# manta_buckets_common_setup_end: entry point invoked by the actual setup scripts to
+# trigger setup actions that should come after main setup actions.
+#
+function manta_buckets_common_setup_end {
+    logadm -w log_rotation_upload -C 3 -c -s 1m '/var/log/logrotateandupload.log'
     logadm -w smf_logs -C 3 -c -s 1m '/var/svc/log/*.log'
     logadm -w '/var/log/*.log' -C 2 -c -s 5m
 }

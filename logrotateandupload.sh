@@ -10,28 +10,27 @@
 #
 
 #
-# Push /var/log/manta/upload/... log files up to Manta.
+# Rotate log files using logadm and push /var/log/manta/upload/... log files up
+# to Manta.
 #
 
 echo ""   # blank line in log file helps scroll btwn instances
 set -o errexit
+set -o pipefail
 export PS4='[\D{%FT%TZ}] ${BASHPID}: ${BASH_SOURCE}:${LINENO}: ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 set -o xtrace
-
 
 
 ## Environment setup
 
 export PATH=/opt/local/bin:$PATH
 
-
-
 ## Global variables
 
 # Immutables
 
 SSH_KEY=/root/.ssh/id_rsa
-BACKUP_LOCKFILE=/tmp/backup_lockfile
+LOCKFILE=/tmp/log_upload_lockfile
 
 MANTA_KEY_ID=$(ssh-keygen -l -f $SSH_KEY.pub | awk '{print $2}')
 MANTA_URL=$(json -f /opt/smartdc/common/etc/config.json manta.url)
@@ -154,7 +153,7 @@ function mkdirp() {
 # Cleanup code
 function finish {
     # Remove tempfile on exit
-    /usr/bin/rm -f "$BACKUP_LOCKFILE.$$"
+    /usr/bin/rm -f "$LOCKFILE.$$"
 }
 trap finish EXIT
 
@@ -164,7 +163,7 @@ trap finish EXIT
 # The first step is to kick off logadm to do the file rotation and wait for it
 # to complete.
 echo "beginning log rotation"
-/usr/sbin/logadm -v >> /var/log/logadm.log 2>&1
+/usr/sbin/logadm -v 2>&1
 echo "log rotation complete"
 
 # To help avoid a deluge of updates from every manta service immediately at the
@@ -181,9 +180,9 @@ sleep $(($sleeptime * 60))
 #     /poseidon/stor/logs/buckets-api/2012/10/17/20/0db94777.8081.log
 
 # Do not run if this script is being run already
-if ! create_lockfile $BACKUP_LOCKFILE; then
+if ! create_lockfile $LOCKFILE; then
     RPID=$(< $LOCKFILE)
-    fail "backup is already running on pid: $RPID"
+    fail "log upload is already running on pid: $RPID"
 fi
 
 echo "beginning log file upload"
@@ -208,4 +207,4 @@ echo "log file upload complete"
 
 # Remove lockfile only if everything succeeded, otherwise it will get cleaned
 # up as a stale pid on a following run
-/usr/bin/rm -f "$BACKUP_LOCKFILE.lock"
+/usr/bin/rm -f "$LOCKFILE.lock"

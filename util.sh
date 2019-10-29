@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (c) 2015, Joyent, Inc.
+# Copyright 2019 Joyent, Inc.
 #
 
 #
@@ -60,31 +60,6 @@ function manta_add_logadm_entry {
     fi
     logadm -w $1 -C 48 -c -p 1h \
         -t "/var/log/manta/upload/$1_\$nodename_%FT%H:00:00.log" \
-        "$pattern" || fatal "unable to create logadm entry"
-}
-
-#
-# manta_buckets_add_logadm_entry SERVICE PORT [LOGDIR]: creates an entry in
-# /etc/logadm.conf for hourly log rotation of smf log files for the specified
-# service instance in LOGDIR.  Logs are rotated into /var/log/manta and
-# eventually uploaded back to Manta.  See services.sh for details on how this
-# works.
-#
-# If LOGDIR is not specified, it defaults to /var/svc/log.
-#
-function manta_buckets_add_logadm_entry {
-    [[ $# -ge 2 ]] || fatal "manta_buckets_add_logadm_entry requires at least 2 argument"
-
-    local service="$1"
-    local port="$2"
-    local logdir="/var/svc/log"
-    if [[ $# -ge 3 ]]; then
-        logdir="$3"
-    fi
-
-    local pattern="$logdir/*$service-$port*.log"
-    logadm -w "$1-$2" -C 48 -c -p 1h \
-        -t "/var/log/manta/upload/$1_\$nodename_%FT%H:00:00_$2.log" \
         "$pattern" || fatal "unable to create logadm entry"
 }
 
