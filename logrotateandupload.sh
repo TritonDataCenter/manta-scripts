@@ -175,9 +175,12 @@ sleep $(($sleeptime * 60))
 
 
 # Files look like this:
-#     buckets-api_0db94777-555d-4f1a-a87f-b1e2ee13c025_8081_2012-10-17T21:00:00.log
+#     buckets-api_0db94777-555d-4f1a-a87f-b1e2ee13c025_2012-10-17T21:00:00_8081.log
+# or this:
+#     boray_b3a7f519-1096-4e47-9a56-efbd1ab8b692_2012-10-17T21:00:00.log
 # And we transform them to this in manta:
 #     /poseidon/stor/logs/buckets-api/2012/10/17/20/0db94777.8081.log
+#     /poseidon/stor/logs/boray/2012/10/17/20/b3a7f519.log
 
 # Do not run if this script is being run already
 if ! create_lockfile $LOCKFILE; then
@@ -207,4 +210,4 @@ echo "log file upload complete"
 
 # Remove lockfile only if everything succeeded, otherwise it will get cleaned
 # up as a stale pid on a following run
-/usr/bin/rm -f "$LOCKFILE.lock"
+/usr/bin/rm -f "$LOCKFILE"
