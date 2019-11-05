@@ -241,3 +241,14 @@ function manta_update_env {
 
     echo "alias js2json='node -e '\''s=\"\"; process.stdin.resume(); process.stdin.on(\"data\",function(c){s+=c}); process.stdin.on(\"end\",function(){o=eval(\"(\"+s+\")\");console.log(JSON.stringify(o)); });'\'''" >> /root/.bashrc
 }
+
+#
+# manta_setup_boray_schemas: run the schema-manager to define the boray
+# schemas on the associated shards if they do not yet exist.
+#
+function manta_setup_boray_schemas {
+    if [[ -x /opt/smartdc/boray/bin/schema-manager ]] ; then
+        echo "Setting up boray schemas"
+        /opt/smartdc/boray/bin/schema-manager || fatal "unable to set up boray schemas"
+    fi
+}
