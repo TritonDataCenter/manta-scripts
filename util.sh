@@ -249,6 +249,6 @@ function manta_update_env {
 function manta_setup_boray_schemas {
     if [[ -x /opt/smartdc/boray/bin/schema-manager ]] ; then
         echo "Setting up boray schemas"
-        /opt/smartdc/boray/bin/schema-manager || fatal "unable to set up boray schemas"
+        /opt/smartdc/boray/bin/schema-manager || echo "unable to set up boray schemas"
     fi
 }
