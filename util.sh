@@ -250,5 +250,7 @@ function manta_setup_boray_schemas {
     if [[ -x /opt/smartdc/boray/bin/schema-manager ]] ; then
         echo "Setting up boray schemas"
         /opt/smartdc/boray/bin/schema-manager || echo "unable to set up boray schemas"
+    else
+        echo "schema-manager executable not found."
     fi
 }
