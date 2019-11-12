@@ -175,6 +175,7 @@ sleep $(($sleeptime * 60))
 
 
 # Files look like this:
+#     ${SERVICE}_${NODENAME}_${TIMESTAMP}[_${INSTANCE}].log
 #     buckets-api_0db94777-555d-4f1a-a87f-b1e2ee13c025_2012-10-17T21:00:00_8081.log
 # or this:
 #     boray_b3a7f519-1096-4e47-9a56-efbd1ab8b692_2012-10-17T21:00:00.log
