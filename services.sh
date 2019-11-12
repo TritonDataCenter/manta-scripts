@@ -282,7 +282,7 @@ function manta_buckets_setup_common_log_rotation {
     manta_add_logadm_entry "config-agent"
     manta_add_logadm_entry "registrar"
     if [[ $# -ge 1 ]]; then
-        for port in `svcs -H -o fmri $1 | grep -v default | sed s/'.*-'//`
+        for port in `svcs -H -o fmri $1 | grep -v :default | sed s/'.*-'//`
         do
             pattern="$logdir/*:$service-$port.log"
             logadm -w "$1-$port" -C 48 -c -p 1h \
