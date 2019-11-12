@@ -180,6 +180,7 @@ sleep $(($sleeptime * 60))
 # or this:
 #     boray_b3a7f519-1096-4e47-9a56-efbd1ab8b692_2012-10-17T21:00:00.log
 # And we transform them to this in manta:
+#     /poseidon/stor/logs/${SERVICE}/${HOURDIR}/${SHORTNODENAME}[.${INSTANCE}].log
 #     /poseidon/stor/logs/buckets-api/2012/10/17/20/0db94777.8081.log
 #     /poseidon/stor/logs/boray/2012/10/17/20/b3a7f519.log
 
