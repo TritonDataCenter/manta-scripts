@@ -280,17 +280,19 @@ function manta_setup_common2_log_rotation {
     manta_add_logadm_entry "config-agent"
     manta_add_logadm_entry "registrar"
     if [[ $# -ge 1 ]]; then
+        local logdir="/var/svc/log"
+
         for port in `svcs -H -o fmri $1 | grep -v :default | sed s/'.*-'//`
         do
-            pattern="$logdir/*:$service-$port.log"
+            pattern="$logdir/*:$1-$port.log"
             logadm -w "$1-$port" -C 48 -c -p 1h \
                    -t "/var/log/manta/upload/$1_\$nodename_%Y%m%dT%H%M%S_$port.log" \
                    "$pattern" || fatal "unable to create logadm entry"
         done
 
-        pattern="$logdir/*$service:default.log"
+        pattern="$logdir/*$1:default.log"
         logadm -w "$1" -C 48 -c -p 1h \
-               -t "/var/log/manta/upload/$1_\$nodename_%FT%H:00:00.log" \
+               -t "/var/log/manta/upload/$1_\$nodename_%Y%m%dT%H%M%S.log" \
                "$pattern" || fatal "unable to create logadm entry"
     fi
 

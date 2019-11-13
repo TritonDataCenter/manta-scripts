@@ -64,6 +64,38 @@ function manta_add_logadm_entry {
 }
 
 #
+# manta_add_logadm_entry2 PATTERN [LOGDIR [MATCH-MODE]]: creates an entry in
+# /etc/logadm.conf for hourly log rotation of files matching PATTERN in LOGDIR.
+# Logs are rotated into /var/log/manta and eventually uploaded back to Manta.
+# See services.sh for details on how this works.
+#
+# If LOGDIR is not specified, it defaults to /var/svc/log.
+#
+# By default, we'll use a fuzzy match (all files matching $LOGDIR/*$PATTERN*)
+# and concatenate all matching files.  If MATCH-MODE is "exact", then we'll only
+# match $LOGDIR/$PATTERN.
+#
+# This function differs from manta_add_logadm_entry in that more granular
+# datetime information is used to name the rotated file and the colons are
+# omitted from the datetime information in the filename.
+#
+function manta_add_logadm_entry2 {
+    [[ $# -ge 1 ]] || fatal "add_logadm_entry2 requires at least 1 argument"
+
+    local logdir="/var/svc/log"
+    if [[ $# -ge 2 ]]; then
+        logdir="$2"
+    fi
+    local pattern="$logdir/*$1*.log"
+    if [[ $# -ge 3 ]] && [[ $3 == "exact" ]]; then
+        pattern="$logdir/$1.log"
+    fi
+    logadm -w $1 -C 48 -c -p 1h \
+        -t "/var/log/manta/upload/$1_\$nodename_%Y%m%dT%H%M%S.log" \
+        "$pattern" || fatal "unable to create logadm entry"
+}
+
+#
 # manta_ensure_moray MORAY_HOST: waits up to about 90 seconds for a moray shard
 # to come online.  It's a fatal error if this doesn't happen within the allotted
 # timeout.
