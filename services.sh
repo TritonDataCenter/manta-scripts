@@ -250,8 +250,6 @@ function manta_buckets_setup_common_log_rotation {
     #
     local DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     mkdir -p /opt/smartdc/common/sbin
-    cp ${DIR}/backup.sh /opt/smartdc/common/sbin
-    chmod 755 /opt/smartdc/common/sbin/backup.sh
     cp ${DIR}/logrotateandupload.sh /opt/smartdc/common/sbin
     chmod 755 /opt/smartdc/common/sbin/logrotateandupload.sh
     chown root:sys /opt/smartdc/common
@@ -286,7 +284,7 @@ function manta_buckets_setup_common_log_rotation {
         do
             pattern="$logdir/*:$service-$port.log"
             logadm -w "$1-$port" -C 48 -c -p 1h \
-                   -t "/var/log/manta/upload/$1_\$nodename_%FT%H:00:00_$port.log" \
+                   -t "/var/log/manta/upload/$1_\$nodename_%Y%m%dT%H%M%S_$port.log" \
                    "$pattern" || fatal "unable to create logadm entry"
         done
 
@@ -486,13 +484,13 @@ function manta_common_setup {
 }
 
 #
-# manta_buckets_common_setup SERVICE_NAME: entry point invoked by the
+# manta_common2_setup SERVICE_NAME: entry point invoked by the
 # actual setup scripts to trigger setup actions defined in this file.
 # SERVICE_NAME is used for naming log files.  (Note that some programmatic
 # configuration based on the service is hardcoded here, so don't change service
 # names without checking the code below.)
 #
-function manta_buckets_common_setup {
+function manta_common2_setup {
     manta_clear_dns_except_sdc
     manta_download_metadata
     manta_enable_config_agent
@@ -531,10 +529,10 @@ function manta_common_setup_end {
 }
 
 #
-# manta_buckets_common_setup_end: entry point invoked by the actual setup scripts to
+# manta_common2_setup_end: entry point invoked by the actual setup scripts to
 # trigger setup actions that should come after main setup actions.
 #
-function manta_buckets_common_setup_end {
+function manta_common2_setup_end {
     logadm -w log_rotation_upload -C 3 -c -s 1m '/var/log/logrotateandupload.log'
     logadm -w smf_logs -C 3 -c -s 1m '/var/svc/log/*.log'
     logadm -w '/var/log/*.log' -C 2 -c -s 5m

@@ -30,7 +30,7 @@ export PATH=/opt/local/bin:$PATH
 # Immutables
 
 SSH_KEY=/root/.ssh/id_rsa
-LOCKFILE=/tmp/log_upload_lockfile
+LOCKFILE_PATH=/tmp/logrotateandupload.lock
 
 MANTA_KEY_ID=$(ssh-keygen -l -f $SSH_KEY.pub | awk '{print $2}')
 MANTA_URL=$(json -f /opt/smartdc/common/etc/config.json manta.url)
@@ -71,11 +71,15 @@ function sign() {
 # $1 -> lockfile to create
 # $$ pid of this script
 function create_lockfile() {
+    local TEMPFILE
+    local LOCKFILE
+    local STALE_PID
+
     # Creating the tempfile can race, but
     # ln(1) is atomic, so that's the true locking
     # operation
     TEMPFILE="$1.$$"
-    LOCKFILE="$1.lock"
+    LOCKFILE="$1"
     if ! echo $$ > $TEMPFILE 2>/dev/null; then
         echo "Unable to write to directory: $(dirname $TEMPFILE)" >&2
         return 1
@@ -150,12 +154,8 @@ function mkdirp() {
 }
 
 
-# Cleanup code
-function finish {
-    # Remove tempfile on exit
-    /usr/bin/rm -f "$LOCKFILE.$$"
-}
-trap finish EXIT
+# Cleanup tempfile on exit
+trap "{ /usr/bin/rm -f $LOCKFILE_PATH.$$; }" EXIT
 
 
 ## Mainline
@@ -169,24 +169,24 @@ echo "log rotation complete"
 # To help avoid a deluge of updates from every manta service immediately at the
 # top of every hour we first sleep for a random time between zero and ten
 # minutes and then proceed with uploading the log files.
-sleeptime=$((RANDOM % 11))
-echo "delaying log upload for $sleeptime minutes"
-sleep $(($sleeptime * 60))
+sleepsecs=$((RANDOM % 600))
+echo "delaying log upload for $sleepsecs seconds"
+sleep $(($sleepsecs))
 
 
 # Files look like this:
 #     ${SERVICE}_${NODENAME}_${TIMESTAMP}[_${INSTANCE}].log
-#     buckets-api_0db94777-555d-4f1a-a87f-b1e2ee13c025_2012-10-17T21:00:00_8081.log
+#     buckets-api_0db94777-555d-4f1a-a87f-b1e2ee13c025_2012-10-17T210000_8081.log
 # or this:
-#     boray_b3a7f519-1096-4e47-9a56-efbd1ab8b692_2012-10-17T21:00:00.log
+#     boray_b3a7f519-1096-4e47-9a56-efbd1ab8b692_2012-10-17T210000.log
 # And we transform them to this in manta:
 #     /poseidon/stor/logs/${SERVICE}/${HOURDIR}/${SHORTNODENAME}[.${INSTANCE}].log
 #     /poseidon/stor/logs/buckets-api/2012/10/17/20/0db94777.8081.log
 #     /poseidon/stor/logs/boray/2012/10/17/20/b3a7f519.log
 
 # Do not run if this script is being run already
-if ! create_lockfile $LOCKFILE; then
-    RPID=$(< $LOCKFILE)
+if ! create_lockfile $LOCKFILE_PATH; then
+    RPID=$(< $LOCKFILE_PATH)
     fail "log upload is already running on pid: $RPID"
 fi
 
@@ -196,6 +196,8 @@ do
     service=$(echo $f | cut -d _ -f 1 | cut -d / -f 6)
     zone=$(echo $f | cut -d _ -f 2 | cut -d - -f 1)
     logtime=$(echo $f | cut -d _ -f 3 | sed 's|.log||')
+    isotime=$(echo $logtime | sed -E 's/^(....)(..)(..)T(..)(..)(..)$/\1-\2-\3T\4:\5:\6/')
+    time=$(date -d \@$(( $(date -d $isotime "+%s") - 3600 )) "+%Y/%m/%d/%H")
     instance=$(echo $f | cut -d _ -f 4 | sed 's|.log||')
     # Not every service will have multiple instances so take that into account
     # when building the upload key
@@ -212,4 +214,4 @@ echo "log file upload complete"
 
 # Remove lockfile only if everything succeeded, otherwise it will get cleaned
 # up as a stale pid on a following run
-/usr/bin/rm -f "$LOCKFILE"
+/usr/bin/rm -f "$LOCKFILE_PATH"
