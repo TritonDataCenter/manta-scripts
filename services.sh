@@ -277,8 +277,8 @@ function manta_setup_common2_log_rotation {
     # Add the logadm configurations for the config-agent and registrar services
     # (which are present in every zone), plus the one we've been given.
     #
-    manta_add_logadm_entry "config-agent"
-    manta_add_logadm_entry "registrar"
+    manta_add_logadm_entry2 "config-agent"
+    manta_add_logadm_entry2 "registrar"
     if [[ $# -ge 1 ]]; then
         local logdir="/var/svc/log"
 

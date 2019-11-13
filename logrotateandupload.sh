@@ -204,7 +204,6 @@ do
     if [[ ! -z "$instance" ]]; then
         instance=".$instance"
     fi
-    time=$(date -d \@$(( $(date -d $logtime "+%s") - 3600 )) "+%Y/%m/%d/%H")
     key="/logs/$service/$time/$zone$instance.log"
     mkdirp $service $time
     manta_put "$key" "$LOG_TYPE" "-T $f"
