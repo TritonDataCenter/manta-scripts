@@ -215,7 +215,7 @@ function manta_setup_common_log_rotation {
 }
 
 #
-# manta_buckets_setup_common_log_rotation [SERVICE]: set up cron to rotate logs,
+# manta_setup_common2_log_rotation [SERVICE]: set up cron to rotate logs,
 # and then configure log rotation for log files common to all Manta zones.  If
 # SERVICE is not specified, then only the truly common logs will be set up.  If
 # SERVICE is given, then logs in /var/svc/log for each instance of SERVICE will
@@ -236,7 +236,7 @@ function manta_setup_common_log_rotation {
 # This function relies on SERVICE already being set up in order to determine the
 # number of instances of SERVICE so it SHOULD NOT be called until after SERVICE
 # has been initialized.
-function manta_buckets_setup_common_log_rotation {
+function manta_setup_common2_log_rotation {
     echo "Setting up common log rotation entries"
 
     #
