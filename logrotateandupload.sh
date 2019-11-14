@@ -171,7 +171,7 @@ echo "log rotation complete"
 # minutes and then proceed with uploading the log files.
 sleepsecs=$((RANDOM % 600))
 echo "delaying log upload for $sleepsecs seconds"
-sleep $(($sleepsecs))
+sleep $sleepsecs
 
 
 # Files look like this:
