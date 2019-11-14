@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (c) 2015, Joyent, Inc.
+# Copyright 2019 Joyent, Inc.
 #
 
 #
@@ -52,7 +52,7 @@ function manta_add_logadm_entry {
 
     local logdir="/var/svc/log"
     if [[ $# -ge 2 ]]; then
-	logdir="$2"
+        logdir="$2"
     fi
     local pattern="$logdir/*$1*.log"
     if [[ $# -ge 3 ]] && [[ $3 == "exact" ]]; then
@@ -60,6 +60,38 @@ function manta_add_logadm_entry {
     fi
     logadm -w $1 -C 48 -c -p 1h \
         -t "/var/log/manta/upload/$1_\$nodename_%FT%H:00:00.log" \
+        "$pattern" || fatal "unable to create logadm entry"
+}
+
+#
+# manta_add_logadm_entry2 PATTERN [LOGDIR [MATCH-MODE]]: creates an entry in
+# /etc/logadm.conf for hourly log rotation of files matching PATTERN in LOGDIR.
+# Logs are rotated into /var/log/manta and eventually uploaded back to Manta.
+# See services.sh for details on how this works.
+#
+# If LOGDIR is not specified, it defaults to /var/svc/log.
+#
+# By default, we'll use a fuzzy match (all files matching $LOGDIR/*$PATTERN*)
+# and concatenate all matching files.  If MATCH-MODE is "exact", then we'll only
+# match $LOGDIR/$PATTERN.
+#
+# This function differs from manta_add_logadm_entry in that more granular
+# datetime information is used to name the rotated file and the colons are
+# omitted from the datetime information in the filename.
+#
+function manta_add_logadm_entry2 {
+    [[ $# -ge 1 ]] || fatal "add_logadm_entry2 requires at least 1 argument"
+
+    local logdir="/var/svc/log"
+    if [[ $# -ge 2 ]]; then
+        logdir="$2"
+    fi
+    local pattern="$logdir/*$1*.log"
+    if [[ $# -ge 3 ]] && [[ $3 == "exact" ]]; then
+        pattern="$logdir/$1.log"
+    fi
+    logadm -w $1 -C 48 -c -p 1h \
+        -t "/var/log/manta/upload/$1_\$nodename_%Y%m%dT%H%M%S.log" \
         "$pattern" || fatal "unable to create logadm entry"
 }
 
@@ -76,14 +108,14 @@ function manta_ensure_moray {
     local isok=0
 
     while [[ $attempt -lt 90 ]]; do
-	now=$(sql -h $1 -p 2020 'select now();' | json now)
-	if [[ $? -eq 0 ]] && [[ -n "$now" ]]; then
-	    isok=1
-	    break
-	fi
+        now=$(sql -h $1 -p 2020 'select now();' | json now)
+        if [[ $? -eq 0 ]] && [[ -n "$now" ]]; then
+            isok=1
+            break
+        fi
 
-	let attempt=attempt+1
-	sleep 1
+        let attempt=attempt+1
+        sleep 1
     done
     [[ $isok -eq 1 ]] || fatal "moray $1 is not up"
 }
@@ -102,24 +134,24 @@ function manta_ensure_zk {
 
     local zk_ips=$(json -f ${METADATA} ZK_SERVERS | json -a host)
     if [[ $? -ne 0 ]]; then
-	zk_ips=127.0.0.1
+        zk_ips=127.0.0.1
     fi
 
     while [[ $attempt -lt 60 ]]; do
-	for ip in $zk_ips; do
-	    zkok=$(echo "ruok" | nc -w 1 $ip 2181)
-	    if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]; then
-		isok=1
-		break
-	    fi
-	done
+        for ip in $zk_ips; do
+            zkok=$(echo "ruok" | nc -w 1 $ip 2181)
+            if [[ $? -eq 0 ]] && [[ "$zkok" == "imok" ]]; then
+                isok=1
+                break
+            fi
+        done
 
-	if [[ $isok -eq 1 ]]; then
-	    break
-	fi
+        if [[ $isok -eq 1 ]]; then
+            break
+        fi
 
-	let attempt=attempt+1
-	sleep 1
+        let attempt=attempt+1
+        sleep 1
     done
     [[ $isok -eq 1 ]] || fatal "ZooKeeper is not running"
 }
