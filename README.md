@@ -5,7 +5,7 @@
 -->
 
 <!--
-    Copyright (c) 2015, Joyent, Inc.
+    Copyright 2020 Joyent, Inc.
 -->
 
 # manta-scripts
@@ -82,10 +82,9 @@ upstream!  (You can also push to a feature branch if you prefer, but it's not
 necessarily any easier.)
 
 To test your changes locally, you'll need to follow the instructions in the
-[Manta developer's
-notes](https://github.com/joyent/manta/blob/master/docs/dev-notes.md) to build
-zone images.  Depending on your changes, you may want to test one or all of the
-zone images.
+[Manta developer guide](https://github.com/joyent/manta/blob/master/docs/developer-guide/) to
+build zone images.  Depending on your changes, you may want to test one or all
+of the zone images.
 
 Here's one approach for testing changes (mostly) locally.
 
