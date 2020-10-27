@@ -169,7 +169,7 @@ echo "log rotation complete"
 # To help avoid a deluge of updates from every manta service immediately at the
 # top of every hour we first sleep for a random time between zero and ten
 # minutes and then proceed with uploading the log files.
-# add splay sleep of 30 minutes - SREM-207
+# add splay sleep time of 30 minutes 
 sleepsecs=$((RANDOM % 1800))
 echo "delaying log upload for $sleepsecs seconds"
 sleep $sleepsecs

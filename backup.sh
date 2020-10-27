@@ -159,7 +159,7 @@ function finish {
 trap finish EXIT
 
 
-# add splay sleep of 30 minutes - SREM-207
+# add splay sleep time of 30 minutes
 sleepsecs=$((RANDOM % 1800))
 echo "delaying log upload for $sleepsecs seconds"
 sleep $sleepsecs
