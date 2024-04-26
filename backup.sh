@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (c) 2017, Joyent, Inc.
+# Copyright (c) 2020, Joyent, Inc.
 #
 
 #
@@ -159,7 +159,9 @@ function finish {
 trap finish EXIT
 
 
-# add splay sleep time of 30 minutes
+# To help avoid a deluge of updates from every manta service immediately at the
+# top of every hour we first sleep for a random time between zero and thirty
+# minutes and then proceed with uploading the log files.
 sleepsecs=$((RANDOM % 1800))
 echo "delaying log upload for $sleepsecs seconds"
 sleep $sleepsecs
