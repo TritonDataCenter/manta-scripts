@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright 2019 Joyent, Inc.
+# Copyright 2020 Joyent, Inc.
 #
 
 #
@@ -167,9 +167,9 @@ echo "beginning log rotation"
 echo "log rotation complete"
 
 # To help avoid a deluge of updates from every manta service immediately at the
-# top of every hour we first sleep for a random time between zero and ten
+# top of every hour we first sleep for a random time between zero and thirty
 # minutes and then proceed with uploading the log files.
-sleepsecs=$((RANDOM % 600))
+sleepsecs=$((RANDOM % 1800))
 echo "delaying log upload for $sleepsecs seconds"
 sleep $sleepsecs
 
